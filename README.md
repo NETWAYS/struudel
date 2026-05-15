@@ -59,6 +59,19 @@ For production also set `SECRET_KEY` (random), `APP_BASE_URL` (public HTTPS URL)
 `SESSION_COOKIE_SECURE=true`. See [`.env.example`](.env.example) for the full list of
 optional settings (mail, timezones, Redis URLs, login button name, …).
 
+## Container Image
+
+Pre-built `linux/amd64` images are published to GitHub Container Registry on every
+push to `main`:
+
+```bash
+docker pull ghcr.io/netways/struudel:latest
+```
+
+The image runs `alembic upgrade head` on start and then serves the app via Gunicorn.
+Wire it into your own Compose / Kubernetes / Nomad stack with the env vars from the
+Configuration table above.
+
 ## Common Commands
 
 | Command | Purpose |
