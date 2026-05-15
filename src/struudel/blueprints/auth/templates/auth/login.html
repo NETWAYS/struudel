@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block page_title %}Login{% endblock %}
+
+{% block content %}
+<div class="flex justify-center mt-10">
+    <div class="card w-full max-w-sm bg-base-100 shadow-md border border-base-300">
+        <div class="card-body items-center text-center gap-1 py-10 px-6">
+            <img src="{{ static_url('img/struudel-512px.png') }}"
+                 alt="Struudel" width="128" height="128" class="mb-4">
+            <h1 class="card-title text-2xl">Struudel</h1>
+            <p class="text-base-content/60 mb-5">Pick a date. Move on.</p>
+            {% if error %}
+                <div role="alert" class="alert alert-error alert-soft text-sm mb-3 w-full">
+                    <i class="ti ti-alert-triangle"></i>
+                    <span>{{ error }}</span>
+                </div>
+            {% endif %}
+            <a id="login-btn"
+               href="{{ url_for('auth.authorize', next=request.args.get('next')) }}"
+               class="btn btn-primary w-full">
+                <i class="ti ti-login"></i>Login with {{ oidc_provider_name }}
+            </a>
+            <div id="login-spinner" class="hidden mt-4 flex flex-col items-center gap-2">
+                <span class="loading loading-spinner text-primary"></span>
+                <p class="text-base-content/60 text-sm">Redirecting to {{ oidc_provider_name }}…</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ static_url('js/auth-login.js') }}"></script>
+{% endblock %}

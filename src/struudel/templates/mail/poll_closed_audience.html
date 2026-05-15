@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Poll closed: {{ poll.title }}{% endblock %}
+{% block body %}
+<h2 style="margin-top: 0;">Hi {{ recipient_user.given_name or recipient_user.name }},</h2>
+<p>The poll <strong>{{ poll.title }}</strong>
+(by {{ poll.created_by.name or poll.created_by.preferred_username }}) has closed.</p>
+<p style="margin-top: 24px;">
+<a href="{{ poll_url }}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+View results
+</a>
+</p>
+{% endblock %}

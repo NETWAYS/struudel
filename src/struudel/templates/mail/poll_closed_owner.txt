@@ -1,0 +1,11 @@
+{% extends "base.txt" %}
+{% block body %}
+Your poll has closed:
+
+  {{ poll.title }}
+
+Total responses: {{ response_count }}.
+
+View final results:
+  {{ poll_url }}
+{% endblock %}

@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+{% from "_components.html" import section_header, empty_state %}
+
+{% block page_title %}Vote &middot; {{ poll.title }}{% endblock %}
+
+{% set mode = poll.response_mode.value %}
+{% set can_submit = (guard.can_vote and not my_response) or (my_response and guard.can_edit) %}
+{% set is_update = my_response is not none %}
+
+{% macro option_icon(opt) %}
+    {% if opt.option_type.value == 'DATE' %}<i class="ti ti-calendar opacity-70"></i>
+    {% elif opt.option_type.value == 'DATETIME' %}<i class="ti ti-calendar-time opacity-70"></i>
+    {% else %}<i class="ti ti-abc opacity-70"></i>{% endif %}
+{% endmacro %}
+
+{% macro option_value(opt) %}
+    {%- if opt.option_type.value == 'DATE' -%}{{ opt.date_value.strftime('%Y-%m-%d') }}
+    {%- elif opt.option_type.value == 'DATETIME' -%}{{ opt.datetime_value | localtime }}
+    {%- else -%}{{ opt.text_value }}
+    {%- endif -%}
+{% endmacro %}
+
+{% block content %}
+<div>
+
+    <div class="flex items-center gap-2 mb-4">
+        <a href="{{ url_for('polls.my') }}" class="btn btn-ghost btn-sm">
+            <i class="ti ti-arrow-left"></i>
+        </a>
+        <h1 class="text-2xl font-bold flex-1 truncate">{{ poll.title }}</h1>
+    </div>
+
+    {% with active='vote' %}{% include "polls/_sub_nav.html" %}{% endwith %}
+
+    {% if poll.description_short %}
+    <p class="text-base-content/80 mb-3">{{ poll.description_short }}</p>
+    {% endif %}
+    {% if poll.description_long %}
+    <p class="text-sm text-base-content/60 whitespace-pre-line mb-4">{{ poll.description_long }}</p>
+    {% endif %}
+
+    {% if guard.reason == 'not_active' %}
+    <div role="alert" class="alert alert-info alert-soft mb-4">
+        <i class="ti ti-info-circle"></i>
+        <span>This poll is a draft and does not accept votes yet.</span>
+    </div>
+    {% elif guard.reason == 'not_started' %}
+    <div role="alert" class="alert alert-info alert-soft mb-4">
+        <i class="ti ti-clock-hour-3"></i>
+        <span>Voting opens on {{ poll.starts_at | localtime }}.</span>
+    </div>
+    {% elif guard.reason == 'closed' %}
+    <div role="alert" class="alert alert-warning alert-soft mb-4">
+        <i class="ti ti-lock"></i>
+        <span>Voting has ended.</span>
+    </div>
+    {% endif %}
+
+    {% if my_response %}
+    <div role="alert" class="alert alert-success alert-soft mb-4">
+        <i class="ti ti-circle-check"></i>
+        <div class="flex-1">
+            <div>
+                Your response was recorded on {{ my_response.submitted_at | localtime }}.
+                {% if guard.can_edit %}
+                    You can still update it{% if poll.edit_responses_until %} until {{ poll.edit_responses_until | localtime }}{% endif %}.
+                {% else %}
+                    Editing is disabled.
+                {% endif %}
+            </div>
+        </div>
+        {% if guard.can_edit %}
+        <form action="{{ url_for('polls.vote_withdraw', poll_id=poll.id) }}" method="post"
+              data-confirm="Withdraw your response?">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="btn btn-ghost btn-xs">
+                <i class="ti ti-x"></i> Withdraw
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if errors %}
+    <div role="alert" class="alert alert-error alert-soft mb-4">
+        <i class="ti ti-alert-triangle"></i>
+        <div>
+            <div class="font-medium">Submission rejected</div>
+            <ul class="text-sm opacity-80 list-disc list-inside">
+                {% for err in errors %}
+                <li>{{ err.msg }}</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="bg-base-100 rounded-box border border-base-300 shadow-sm divide-y divide-base-200">
+
+        {% if can_submit %}
+        <form method="post"
+              action="{{ url_for('polls.vote', poll_id=poll.id) }}"
+              x-data='voteEditor({
+                  mode: {{ mode | tojson }},
+                  options: {{ options_json | tojson }},
+                  initialVotes: {{ initial_votes | tojson }},
+                  initialGuests: {{ initial_guests | tojson }},
+                  maxYes: {{ max_yes | tojson }},
+                  allowGuests: {{ poll.allow_guests | tojson }},
+                  maxGuests: {{ poll.max_guests | tojson }}
+              })'
+              class="p-6 space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="votes" :value="serialize()">
+
+            {% call section_header('checkbox', 'Your vote', 'primary') %}
+                {% if mode == 'YES_NO_MAYBE' %}Mark each option as Yes, Maybe, or No.
+                {% elif mode == 'SINGLE_CHOICE' %}Pick exactly one option.
+                {% elif mode == 'MULTI_CHOICE' and max_yes %}Pick up to <strong>{{ max_yes }}</strong> options.
+                {% else %}Pick any number of options.
+                {% endif %}
+            {% endcall %}
+
+            {% if mode == 'MULTI_CHOICE' and max_yes %}
+            <div class="text-xs"
+                 :class="limitReached() ? 'text-warning font-medium' : 'text-base-content/60'">
+                <i class="ti ti-list-check"></i>
+                <span x-text="yesCount()"></span> / {{ max_yes }} selected<span x-show="limitReached()"> — limit reached</span>
+            </div>
+            {% endif %}
+
+            <ul class="divide-y divide-base-200 -mx-6 border-y border-base-200">
+                {% for opt in options %}
+                <li class="flex items-center gap-3 px-6 py-3 hover:bg-base-200/40 transition-colors"
+                    :class="{ 'bg-base-200/40': votes[{{ opt.id }}] === 'YES' || votes[{{ opt.id }}] === 'MAYBE' }">
+                    <div class="flex items-center gap-2 flex-1 min-w-0">
+                        {{ option_icon(opt) }}
+                        <span class="truncate">{{ option_value(opt) }}</span>
+                        {% if opt.is_custom %}
+                        <span class="badge badge-ghost badge-sm">custom</span>
+                        {% endif %}
+                    </div>
+
+                    {% if poll.allow_guests %}
+                    <div class="flex items-center gap-1 text-xs"
+                         x-show="votes[{{ opt.id }}] === 'YES'"
+                         x-cloak>
+                        <span class="text-base-content/60">+</span>
+                        <input type="number" min="0"{% if poll.max_guests %} max="{{ poll.max_guests }}"{% endif %}
+                               x-model.number="guests[{{ opt.id }}]"
+                               @change="clampGuests({{ opt.id }})"
+                               class="input input-xs w-[3.25rem] text-center">
+                    </div>
+                    {% endif %}
+
+                    {% if mode == 'YES_NO_MAYBE' %}
+                    <div class="join">
+                        <button type="button"
+                                @click="set({{ opt.id }}, 'YES')"
+                                :class="votes[{{ opt.id }}] === 'YES' ? 'btn-success' : ''"
+                                class="btn btn-sm join-item" title="Yes">
+                            <i class="ti ti-check"></i>
+                        </button>
+                        <button type="button"
+                                @click="set({{ opt.id }}, 'MAYBE')"
+                                :class="votes[{{ opt.id }}] === 'MAYBE' ? 'btn-warning' : ''"
+                                class="btn btn-sm join-item" title="Maybe">
+                            <i class="ti ti-question-mark"></i>
+                        </button>
+                        <button type="button"
+                                @click="set({{ opt.id }}, 'NO')"
+                                :class="votes[{{ opt.id }}] === 'NO' ? 'btn-error' : ''"
+                                class="btn btn-sm join-item" title="No">
+                            <i class="ti ti-x"></i>
+                        </button>
+                    </div>
+                    {% elif mode == 'SINGLE_CHOICE' %}
+                    <button type="button"
+                            @click="set({{ opt.id }}, 'YES')"
+                            :class="votes[{{ opt.id }}] === 'YES' ? 'btn-success' : 'btn-ghost'"
+                            class="btn btn-sm">
+                        <i class="ti ti-check" x-show="votes[{{ opt.id }}] === 'YES'"></i>
+                        <span>Pick</span>
+                    </button>
+                    {% else %}
+                    <button type="button"
+                            @click="toggle({{ opt.id }})"
+                            :disabled="!canSelect({{ opt.id }})"
+                            :class="votes[{{ opt.id }}] === 'YES' ? 'btn-success' : 'btn-ghost'"
+                            class="btn btn-sm">
+                        <i class="ti ti-check" x-show="votes[{{ opt.id }}] === 'YES'"></i>
+                        <span x-text="votes[{{ opt.id }}] === 'YES' ? 'Selected' : 'Select'"></span>
+                    </button>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+
+            {% if not anonymous %}
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">Comment <span class="text-base-content/55 font-normal">(optional)</span></legend>
+                <textarea id="comment" name="comment" rows="2"
+                          placeholder="Anything to add?"
+                          class="textarea w-full">{{ my_response.comment if my_response and my_response.comment else '' }}</textarea>
+            </fieldset>
+            {% endif %}
+
+            <div class="flex justify-end">
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-device-floppy"></i>
+                    {% if is_update %}Update response{% else %}Save response{% endif %}
+                </button>
+            </div>
+        </form>
+        {% endif %}
+
+        {% if poll.allow_custom_options and guard.can_vote %}
+        <form method="post"
+              action="{{ url_for('polls.add_custom_option', poll_id=poll.id) }}"
+              x-data="{ type: 'TEXT' }"
+              class="p-6 space-y-4">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+            {% call section_header('plus', 'Suggest an option', 'success') %}Anyone with access can vote on it.{% endcall %}
+
+            <div class="flex flex-wrap items-end gap-2">
+                <fieldset class="fieldset">
+                    <legend class="fieldset-legend">Type</legend>
+                    <select id="custom-option-type" name="type" x-model="type" class="select select-sm">
+                        <option value="TEXT">Text</option>
+                        <option value="DATE">Date</option>
+                        <option value="DATETIME">Date &amp; time</option>
+                    </select>
+                </fieldset>
+
+                <fieldset class="fieldset flex-1 min-w-48" x-show="type === 'TEXT'">
+                    <legend class="fieldset-legend">Value</legend>
+                    <input id="custom-option-text" type="text" name="text_value" maxlength="200"
+                           class="input input-sm w-full" placeholder="Option text">
+                </fieldset>
+                <fieldset class="fieldset" x-show="type === 'DATE'" x-cloak>
+                    <legend class="fieldset-legend">Date</legend>
+                    <input id="custom-option-date" type="date" name="date_value" class="input input-sm">
+                </fieldset>
+                <fieldset class="fieldset" x-show="type === 'DATETIME'" x-cloak>
+                    <legend class="fieldset-legend">Date &amp; time</legend>
+                    <input id="custom-option-datetime" type="datetime-local" name="datetime_value" class="input input-sm">
+                </fieldset>
+
+                <button type="submit" class="btn btn-primary btn-sm">
+                    <i class="ti ti-plus"></i>Add
+                </button>
+            </div>
+        </form>
+        {% endif %}
+
+        <section class="p-6 space-y-4">
+            {% call section_header('chart-bar', 'Results', 'secondary') %}
+                {{ summary_rows | length }} response{{ '' if summary_rows | length == 1 else 's' }} so far
+            {% endcall %}
+
+            {% if hide_results %}
+            {{ empty_state('eye-off', 'Results are hidden', 'They will appear once the poll is closed.') }}
+            {% elif summary_rows %}
+            <div class="overflow-x-auto -mx-6 border-y border-base-200">
+                <table class="table table-sm align-middle">
+                    <thead>
+                        <tr class="bg-base-200/40">
+                            <th class="ps-6 align-middle">Participant</th>
+                            {% for opt in options %}
+                            <th class="text-center align-middle px-3">
+                                <div class="inline-flex items-center justify-center gap-1 text-sm whitespace-nowrap">
+                                    {{ option_icon(opt) }}
+                                    <span>{{ option_value(opt) }}</span>
+                                </div>
+                            </th>
+                            {% endfor %}
+                        </tr>
+                        <tr class="text-xs text-base-content/60 border-b border-base-300">
+                            <th class="ps-6 font-normal align-middle">Totals</th>
+                            {% for opt in options %}
+                            {% set t = summary_tallies.get(opt.id) %}
+                            {% set yes = t.yes if t else 0 %}
+                            {% set yes_guests = t.yes_guests if t else 0 %}
+                            {% set maybe = t.maybe if t else 0 %}
+                            {% set no = t.no if t else 0 %}
+                            {% set yes_total = yes + yes_guests %}
+                            <th class="text-center font-normal align-middle py-2">
+                                <div class="inline-flex items-center gap-1 text-xs font-semibold">
+                                    <span class="inline-flex items-center gap-1 px-2 h-6 rounded-full {{ 'bg-success/15 text-success' if yes_total else 'bg-base-200 text-base-content/35' }}"
+                                          title="{{ yes }} yes{% if yes_guests %} + {{ yes_guests }} guests = {{ yes_total }} total{% endif %}">
+                                        <i class="ti ti-check"></i>{{ yes_total }}{% if yes_guests %}<span class="font-normal opacity-70">&nbsp;+{{ yes_guests }}</span>{% endif %}
+                                    </span>
+                                    {% if mode == 'YES_NO_MAYBE' %}
+                                    <span class="inline-flex items-center gap-1 px-2 h-6 rounded-full {{ 'bg-warning/15 text-warning' if maybe else 'bg-base-200 text-base-content/35' }}"
+                                          title="{{ maybe }} maybe">
+                                        <i class="ti ti-question-mark"></i>{{ maybe }}
+                                    </span>
+                                    <span class="inline-flex items-center gap-1 px-2 h-6 rounded-full {{ 'bg-error/10 text-error' if no else 'bg-base-200 text-base-content/35' }}"
+                                          title="{{ no }} no">
+                                        <i class="ti ti-x"></i>{{ no }}
+                                    </span>
+                                    {% endif %}
+                                </div>
+                            </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in summary_rows %}
+                        <tr class="hover:bg-base-200/30 transition-colors">
+                            <td class="ps-6 py-3 align-middle">
+                                <div class="font-medium">
+                                    {% if row.user %}{{ row.user }}{% else %}<span class="text-base-content/55">Anonymous</span>{% endif %}
+                                </div>
+                                <div class="text-xs text-base-content/55">{{ row.submitted_at }}</div>
+                                {% if row.comment %}
+                                <div class="text-xs italic mt-1 text-base-content/70">&ldquo;{{ row.comment }}&rdquo;</div>
+                                {% endif %}
+                            </td>
+                            {% for opt in options %}
+                            {% set status = row.votes.get(opt.id, 'NO') %}
+                            {% set guests = row.option_guests.get(opt.id, 0) %}
+                            <td class="text-center py-3 align-middle">
+                                {% if status == 'YES' and guests %}
+                                <span class="inline-flex items-center gap-1 h-7 ps-2 pe-2.5 rounded-full bg-success/15 text-success font-semibold text-sm"
+                                      title="Yes — bringing {{ guests }} guest{{ '' if guests == 1 else 's' }}">
+                                    <i class="ti ti-check text-base"></i>+{{ guests }}
+                                </span>
+                                {% elif status == 'YES' %}
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-success/15 text-success" title="Yes">
+                                    <i class="ti ti-check text-base font-bold"></i>
+                                </span>
+                                {% elif status == 'MAYBE' %}
+                                <span class="inline-flex items-center justify-center w-7 h-7 rounded-full bg-warning/15 text-warning" title="Maybe">
+                                    <i class="ti ti-question-mark text-base font-bold"></i>
+                                </span>
+                                {% else %}
+                                <span class="inline-flex items-center justify-center text-base-content/25" title="No">
+                                    <i class="ti ti-minus text-lg"></i>
+                                </span>
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            {{ empty_state('mood-empty', 'No responses yet', 'Once people vote, their answers show up here.') }}
+            {% endif %}
+        </section>
+
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ static_url('js/polls-vote.js') }}"></script>
+{% endblock %}

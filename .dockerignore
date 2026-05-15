@@ -1,0 +1,10 @@
+.venv
+__pycache__
+*.pyc
+.ruff_cache
+.ty_cache
+.env
+.env.*
+Dockerfile
+compose.yaml
+Makefile

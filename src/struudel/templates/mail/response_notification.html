@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}New response on "{{ poll.title }}"{% endblock %}
+{% block body %}
+<h2 style="margin-top: 0;">A new response was submitted</h2>
+<p>
+{% if anonymous %}
+Someone has responded to your poll <strong>{{ poll.title }}</strong>.
+{% else %}
+<strong>{{ voter_name }}</strong> has responded to your poll
+<strong>{{ poll.title }}</strong>.
+{% endif %}
+</p>
+<p>Total responses so far: <strong>{{ response_count }}</strong>.</p>
+<p style="margin-top: 24px;">
+<a href="{{ poll_url }}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+View results
+</a>
+</p>
+<p style="color: #6b7280; font-size: 13px;">
+You receive this because "Notify owner on new response" is enabled on this poll.
+</p>
+{% endblock %}

@@ -1,0 +1,23 @@
+{% extends "base.txt" %}
+{% block body %}
+Hi {{ recipient_user.given_name or recipient_user.name }},
+
+{{ poll.created_by.name or poll.created_by.preferred_username }} has invited
+you to vote on a poll:
+
+  {{ poll.title }}
+{% if poll.description_short %}
+  {{ poll.description_short }}
+{% endif %}
+{% if poll.is_mandatory %}
+
+This is a required poll. Your response is expected.
+{% endif %}
+{% if poll.ends_at %}
+
+Please respond by {{ poll.ends_at.strftime("%Y-%m-%d %H:%M UTC") }}.
+{% endif %}
+
+Open the poll:
+  {{ vote_url }}
+{% endblock %}

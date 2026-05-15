@@ -1,0 +1,4 @@
+{% block body %}{% endblock %}
+--
+Struudel
+{{ app_base_url }}

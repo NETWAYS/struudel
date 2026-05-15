@@ -1,0 +1,18 @@
+{% set active = request.endpoint %}
+<div role="tablist" class="tabs tabs-border mb-6">
+    <a role="tab"
+       class="tab {% if active == 'polls.my' %}tab-active{% endif %}"
+       href="{{ url_for('polls.my') }}">
+        <i class="ti ti-user-edit me-1"></i>My polls
+    </a>
+    <a role="tab"
+       class="tab {% if active == 'polls.participate' %}tab-active{% endif %}"
+       href="{{ url_for('polls.participate') }}">
+        <i class="ti ti-users me-1"></i>Participate
+    </a>
+    <a role="tab"
+       class="tab {% if active == 'polls.public' %}tab-active{% endif %}"
+       href="{{ url_for('polls.public') }}">
+        <i class="ti ti-world me-1"></i>Public
+    </a>
+</div>

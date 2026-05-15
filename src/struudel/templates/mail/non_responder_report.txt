@@ -1,0 +1,21 @@
+{% extends "base.txt" %}
+{% block body %}
+Non-responders report
+
+Your required poll has closed:
+
+  {{ poll.title }}
+
+{% if non_responders %}
+The following audience members did not respond:
+
+{% for u in non_responders %}
+  - {{ u.name or u.preferred_username }} <{{ u.email }}>
+{% endfor %}
+{% else %}
+Everyone responded.
+{% endif %}
+
+Open poll:
+  {{ poll_url }}
+{% endblock %}

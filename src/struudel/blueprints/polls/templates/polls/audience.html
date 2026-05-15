@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% from "_components.html" import section_header, empty_state %}
+
+{% block page_title %}Audience &middot; {{ poll.title }}{% endblock %}
+
+{% block content %}
+<div>
+
+    <div class="flex items-center gap-2 mb-4">
+        <a href="{{ url_for('polls.my') }}" class="btn btn-ghost btn-sm">
+            <i class="ti ti-arrow-left"></i>
+        </a>
+        <h1 class="text-2xl font-bold flex-1 truncate">{{ poll.title }}</h1>
+    </div>
+
+    {% with active='audience' %}{% include "polls/_sub_nav.html" %}{% endwith %}
+
+    {% if poll.visibility.value == 'PUBLIC' %}
+    <div role="alert" class="alert alert-info alert-soft mb-4">
+        <i class="ti ti-info-circle"></i>
+        <div>
+            <div class="font-medium">Public poll</div>
+            <div class="text-sm opacity-80">
+                The audience is ignored for access control &mdash; anyone authenticated can view and vote.
+                Members listed here will still receive an invitation.
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if poll.is_mandatory %}
+    <div role="alert" class="alert alert-warning alert-soft mb-4">
+        <i class="ti ti-alert-triangle"></i>
+        <div class="text-sm">
+            This poll is <strong>mandatory</strong> &mdash; everyone in the audience must respond.
+        </div>
+    </div>
+    {% endif %}
+
+    {% if errors %}
+    <div role="alert" class="alert alert-error alert-soft mb-4">
+        <i class="ti ti-alert-triangle"></i>
+        <span>Form contains errors. Please review.</span>
+    </div>
+    {% endif %}
+
+    <form method="post"
+          action="{{ url_for('polls.audience', poll_id=poll.id) }}"
+          class="bg-base-100 rounded-box border border-base-300 shadow-sm"
+          x-data='audienceEditor({{ initial_users | tojson }}, {{ initial_groups | tojson }})'
+          @keydown.escape.window="userSearchOpen = false; groupSearchOpen = false">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="users"  :value="serializeUsers()">
+        <input type="hidden" name="groups" :value="serializeGroups()">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-base-200">
+
+            {# --- Users ------------------------------------------------------ #}
+            <section class="p-6 space-y-4">
+                {% call section_header('user', 'Users', 'primary') %}
+                    <span x-text="users.length"></span><span x-text="users.length === 1 ? ' member invited' : ' members invited'"></span>
+                {% endcall %}
+
+                <div class="relative"
+                     @click.outside="userSearchOpen = false">
+                    <label class="input input-sm flex items-center gap-2 w-full">
+                        <i class="ti ti-search opacity-60"></i>
+                        <input type="text"
+                               placeholder="Search by name or email..."
+                               autocomplete="off"
+                               class="grow outline-none"
+                               x-ref="userSearchInput"
+                               hx-get="{{ url_for('polls.audience_search', poll_id=poll.id) }}"
+                               hx-trigger="input changed delay:250ms, focus"
+                               hx-target="#user-search-results"
+                               hx-include="this"
+                               hx-vals='{"kind": "user"}'
+                               @focus="userSearchOpen = true"
+                               @input="userSearchOpen = true"
+                               name="q">
+                    </label>
+                    <div id="user-search-results"
+                         x-show="userSearchOpen"
+                         @click="userSearchOpen = false"
+                         x-cloak
+                         class="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-auto bg-base-100 border border-base-300 rounded-box shadow-lg empty:hidden">
+                    </div>
+                </div>
+
+                <ul class="-mx-6 border-y border-base-200 divide-y divide-base-200"
+                    x-show="users.length > 0">
+                    <template x-for="u in users" :key="u.id">
+                        <li class="group flex items-center gap-3 px-6 py-2.5 hover:bg-base-200/40 transition-colors">
+                            <span class="shrink-0 w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                                <i class="ti ti-user text-sm"></i>
+                            </span>
+                            <div class="flex-1 min-w-0">
+                                <div class="truncate text-sm" x-text="u.label"></div>
+                                <div class="truncate text-xs text-base-content/55" x-text="u.sublabel"></div>
+                            </div>
+                            <button type="button" @click="removeUser(u.id)"
+                                    class="shrink-0 w-6 h-6 rounded flex items-center justify-center text-base-content/40 hover:text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                    title="Remove">
+                                <i class="ti ti-x text-sm"></i>
+                            </button>
+                        </li>
+                    </template>
+                </ul>
+                <div x-show="users.length === 0">
+                    {{ empty_state('user-plus', 'No users invited yet', 'Search above to add someone.') }}
+                </div>
+            </section>
+
+            {# --- Groups ----------------------------------------------------- #}
+            <section class="p-6 space-y-4">
+                {% call section_header('users-group', 'Groups', 'success') %}
+                    <span x-text="groups.length"></span><span x-text="groups.length === 1 ? ' group invited' : ' groups invited'"></span>
+                {% endcall %}
+
+                <div class="relative"
+                     @click.outside="groupSearchOpen = false">
+                    <label class="input input-sm flex items-center gap-2 w-full">
+                        <i class="ti ti-search opacity-60"></i>
+                        <input type="text"
+                               placeholder="Search groups..."
+                               autocomplete="off"
+                               class="grow outline-none"
+                               x-ref="groupSearchInput"
+                               hx-get="{{ url_for('polls.audience_search', poll_id=poll.id) }}"
+                               hx-trigger="input changed delay:250ms, focus"
+                               hx-target="#group-search-results"
+                               hx-include="this"
+                               hx-vals='{"kind": "group"}'
+                               @focus="groupSearchOpen = true"
+                               @input="groupSearchOpen = true"
+                               name="q">
+                    </label>
+                    <div id="group-search-results"
+                         x-show="groupSearchOpen"
+                         @click="groupSearchOpen = false"
+                         x-cloak
+                         class="absolute left-0 right-0 z-20 mt-1 max-h-72 overflow-auto bg-base-100 border border-base-300 rounded-box shadow-lg empty:hidden">
+                    </div>
+                </div>
+
+                <ul class="-mx-6 border-y border-base-200 divide-y divide-base-200"
+                    x-show="groups.length > 0">
+                    <template x-for="g in groups" :key="g.id">
+                        <li class="group flex items-center gap-3 px-6 py-2.5 hover:bg-base-200/40 transition-colors">
+                            <span class="shrink-0 w-7 h-7 rounded-full bg-success/10 text-success flex items-center justify-center">
+                                <i class="ti ti-users-group text-sm"></i>
+                            </span>
+                            <div class="flex-1 min-w-0">
+                                <div class="truncate text-sm" x-text="g.label"></div>
+                            </div>
+                            <button type="button" @click="removeGroup(g.id)"
+                                    class="shrink-0 w-6 h-6 rounded flex items-center justify-center text-base-content/40 hover:text-error hover:bg-error/10 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                    title="Remove">
+                                <i class="ti ti-x text-sm"></i>
+                            </button>
+                        </li>
+                    </template>
+                </ul>
+                <div x-show="groups.length === 0">
+                    {{ empty_state('users-group', 'No groups invited yet', 'Search above to add a group.') }}
+                </div>
+            </section>
+
+        </div>
+
+        <div class="flex items-center justify-end p-6 bg-base-200/40 rounded-b-box border-t border-base-200">
+            <div class="flex gap-2">
+                <a href="{{ url_for('polls.detail', poll_id=poll.id) }}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-device-floppy"></i>Save audience
+                </button>
+            </div>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ static_url('js/polls-audience.js') }}"></script>
+{% endblock %}

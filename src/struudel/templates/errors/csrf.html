@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block page_title %}Request rejected{% endblock %}
+
+{% block content %}
+<div class="max-w-xl mx-auto mt-10">
+    <div class="card bg-base-100 border border-base-300 shadow-sm">
+        <div class="card-body items-center text-center">
+            <i class="ti ti-shield-off text-error text-5xl mb-2"></i>
+            <h1 class="card-title text-2xl">Request rejected</h1>
+            <p class="text-base-content/70">
+                The security token for this request was missing or invalid.
+                This usually means your session expired or the form was opened in a different tab.
+            </p>
+            {% if config.DEBUG and reason %}
+            <div role="alert" class="alert alert-warning alert-soft text-xs mt-3 text-start">
+                <i class="ti ti-info-circle"></i>
+                <span>{{ reason }}</span>
+            </div>
+            {% endif %}
+            <div class="card-actions mt-4">
+                <a href="{{ url_for('dashboard.index') }}" class="btn btn-primary">
+                    <i class="ti ti-home"></i>Back to dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

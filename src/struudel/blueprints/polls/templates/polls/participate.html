@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block page_title %}Participate{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+    <h1 class="text-2xl font-bold flex items-center gap-2">
+        <i class="ti ti-list-check text-primary"></i>Polls
+    </h1>
+    <a href="{{ url_for('polls.new') }}" class="btn btn-primary btn-sm">
+        <i class="ti ti-plus"></i>New poll
+    </a>
+</div>
+
+{% include "polls/_tabs.html" %}
+
+{% with polls=polls, show_owner=False, empty_hint='You haven\'t been invited to any polls yet.' %}
+    {% include "polls/_list.html" %}
+{% endwith %}
+{% endblock %}

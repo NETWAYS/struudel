@@ -1,0 +1,46 @@
+services:
+  app:
+    volumes:
+      - ./src:/app/src
+      - ./css:/app/css
+      - ./scripts:/app/scripts
+      - ./tests:/app/tests
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+    environment:
+      - APP_ENV=dev
+      - FLASK_DEBUG=1
+      - APP_BASE_URL=http://localhost:5009
+      - MAIL_HOST=mailpit
+      - MAIL_PORT=1025
+      - MAIL_FROM=no-reply@struudel.local
+      - MAIL_FROM_NAME=Struudel (dev)
+
+  worker:
+    environment:
+      - APP_BASE_URL=http://localhost:5009
+      - MAIL_HOST=mailpit
+      - MAIL_PORT=1025
+      - MAIL_FROM=no-reply@struudel.local
+      - MAIL_FROM_NAME=Struudel (dev)
+    volumes:
+      - ./src:/app/src
+      - ./scripts:/app/scripts
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+
+  postgres:
+    ports:
+      - "5432:5432"
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: struudel-mailpit
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"

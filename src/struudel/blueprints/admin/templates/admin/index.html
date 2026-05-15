@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block page_title %}Admin{% endblock %}
+
+{% macro stat(label, value, accent='base-content/60') %}
+<span class="inline-flex items-baseline gap-1 text-{{ accent }}">
+    <span class="font-semibold tabular-nums">{{ value }}</span>
+    <span class="text-xs">{{ label }}</span>
+</span>
+{% endmacro %}
+
+{% macro dot() %}<span class="text-base-content/25" aria-hidden="true">·</span>{% endmacro %}
+
+{% block content %}
+<section class="card bg-base-100 border border-base-300 shadow-sm mb-4">
+    <div class="card-body p-6">
+        <header class="flex items-center gap-3 mb-2">
+            <span class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary shrink-0">
+                <i class="ti ti-shield-lock text-xl"></i>
+            </span>
+            <h1 class="text-xl font-semibold leading-tight">Admin Dashboard</h1>
+        </header>
+        <p class="text-base-content/70">
+            Hello, {{ current_user.name or current_user.preferred_username }} — welcome to the admin area.
+        </p>
+    </div>
+</section>
+
+<div class="grid gap-4 sm:grid-cols-2">
+    <a href="{{ url_for('admin.users') }}"
+       class="card bg-base-100 border border-base-300 shadow-sm hover:border-primary/50 hover:shadow-md transition-all">
+        <div class="card-body p-5">
+            <div class="flex items-center gap-3">
+                <span class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary shrink-0">
+                    <i class="ti ti-users text-lg"></i>
+                </span>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-base font-semibold leading-tight">Users</h2>
+                    <p class="text-xs text-base-content/55 mt-0.5">Grant superuser, deactivate, delete accounts and their polls.</p>
+                </div>
+                <i class="ti ti-chevron-right text-base-content/40"></i>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-sm">
+                {{ stat('total', user_counts.total) }}
+                {% if user_counts.superusers %}{{ dot() }}{{ stat('superusers', user_counts.superusers, 'warning') }}{% endif %}
+                {% if user_counts.inactive %}{{ dot() }}{{ stat('inactive', user_counts.inactive, 'base-content/50') }}{% endif %}
+            </div>
+        </div>
+    </a>
+
+    <a href="{{ url_for('admin.groups') }}"
+       class="card bg-base-100 border border-base-300 shadow-sm hover:border-primary/50 hover:shadow-md transition-all">
+        <div class="card-body p-5">
+            <div class="flex items-center gap-3">
+                <span class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary shrink-0">
+                    <i class="ti ti-users-group text-lg"></i>
+                </span>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-base font-semibold leading-tight">Groups</h2>
+                    <p class="text-xs text-base-content/55 mt-0.5">Set group aliases and hide groups from poll audiences.</p>
+                </div>
+                <i class="ti ti-chevron-right text-base-content/40"></i>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-sm">
+                {{ stat('total', group_counts.total) }}
+                {% if group_counts.hidden %}{{ dot() }}{{ stat('hidden', group_counts.hidden, 'base-content/50') }}{% endif %}
+            </div>
+        </div>
+    </a>
+
+    <a href="{{ url_for('admin.polls') }}"
+       class="card bg-base-100 border border-base-300 shadow-sm hover:border-primary/50 hover:shadow-md transition-all">
+        <div class="card-body p-5">
+            <div class="flex items-center gap-3">
+                <span class="flex items-center justify-center w-10 h-10 rounded-lg bg-primary/10 text-primary shrink-0">
+                    <i class="ti ti-list-check text-lg"></i>
+                </span>
+                <div class="flex-1 min-w-0">
+                    <h2 class="text-base font-semibold leading-tight">Polls</h2>
+                    <p class="text-xs text-base-content/55 mt-0.5">Search, filter and delete polls across the system.</p>
+                </div>
+                <i class="ti ti-chevron-right text-base-content/40"></i>
+            </div>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-3 text-sm">
+                {{ stat('total', poll_counts.get('TOTAL', 0)) }}
+                {% if poll_counts.get('ACTIVE') %}{{ dot() }}{{ stat('active', poll_counts['ACTIVE'], 'success') }}{% endif %}
+                {% if poll_counts.get('CLOSED') %}{{ dot() }}{{ stat('closed', poll_counts['CLOSED']) }}{% endif %}
+                {% if poll_counts.get('DRAFT') %}{{ dot() }}{{ stat('draft', poll_counts['DRAFT'], 'base-content/50') }}{% endif %}
+                {% if poll_counts.get('TEMPLATE') %}{{ dot() }}{{ stat('template', poll_counts['TEMPLATE'], 'info') }}{% endif %}
+            </div>
+        </div>
+    </a>
+</div>
+{% endblock %}

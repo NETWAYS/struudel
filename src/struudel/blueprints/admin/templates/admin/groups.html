@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% from "_components.html" import empty_state %}
+
+{% block page_title %}Groups · Admin{% endblock %}
+
+{% block scripts %}
+<script src="{{ static_url('js/admin-groups.js') }}"></script>
+{% endblock %}
+
+{% block content %}
+<section class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body p-5 gap-4">
+        <header class="flex items-center gap-3">
+            <span class="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary shrink-0">
+                <i class="ti ti-users-group text-lg"></i>
+            </span>
+            <div class="flex-1 min-w-0">
+                <h1 class="text-base font-semibold leading-tight">Groups</h1>
+                <p class="text-xs text-base-content/55 mt-0.5">
+                    Set a human-readable alias for each group and hide groups from poll-audience pickers.
+                    The SCIM identifier on the left is managed by the identity provider and cannot be edited here.
+                </p>
+            </div>
+        </header>
+
+        {% if groups %}
+        <form method="post" action="{{ url_for('admin.groups') }}" class="contents"
+              x-data='groupsFilter({{ filter_q | tojson }}, {{ filter_visibility | tojson }})'>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="q" :value="q">
+            <input type="hidden" name="visibility" :value="visibility">
+
+            <div class="flex flex-wrap items-center gap-3">
+                <label class="input input-sm flex items-center gap-2 grow max-w-sm">
+                    <i class="ti ti-search opacity-60"></i>
+                    <input type="text"
+                           x-ref="searchInput"
+                           placeholder="Filter by SCIM identifier or alias…"
+                           autocomplete="off"
+                           class="grow outline-none"
+                           x-model="q">
+                    <button type="button"
+                            x-show="q"
+                            x-cloak
+                            @click="q = ''; $refs.searchInput.focus()"
+                            class="text-base-content/50 hover:text-base-content"
+                            title="Clear search"
+                            aria-label="Clear search">
+                        <i class="ti ti-x"></i>
+                    </button>
+                </label>
+                <div class="join">
+                    <button type="button"
+                            class="join-item btn btn-sm"
+                            :class="visibility === 'all' && 'btn-active btn-primary'"
+                            @click="visibility = 'all'">
+                        <i class="ti ti-list"></i>All
+                    </button>
+                    <button type="button"
+                            class="join-item btn btn-sm"
+                            :class="visibility === 'visible' && 'btn-active btn-primary'"
+                            @click="visibility = 'visible'">
+                        <i class="ti ti-eye"></i>Visible
+                    </button>
+                    <button type="button"
+                            class="join-item btn btn-sm"
+                            :class="visibility === 'hidden' && 'btn-active btn-primary'"
+                            @click="visibility = 'hidden'">
+                        <i class="ti ti-eye-off"></i>Hidden
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto rounded-box border border-base-300">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th class="w-1/3">SCIM identifier</th>
+                            <th>Alias</th>
+                            <th class="w-24 text-center">Hidden</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for g in groups %}
+                        {% set current_name = submitted_names.get(g.id, g.name) %}
+                        {% set is_hidden = submitted_hidden.get(g.id, g.hidden) %}
+                        {% set err = errors.get(g.id) %}
+                        <tr class="hover:bg-base-200/40 transition-colors align-middle"
+                            data-canonical="{{ g.canonical_name }}"
+                            data-alias="{{ current_name }}"
+                            data-hidden="{{ 'true' if is_hidden else 'false' }}"
+                            x-show="rowMatches($el.dataset)">
+                            <td class="font-mono text-xs text-base-content/70">
+                                <span class="cursor-help"
+                                      title="External ID: {{ g.external_id or '—' }}">{{ g.canonical_name }}</span>
+                            </td>
+                            <td>
+                                <input type="text"
+                                       name="group-{{ g.id }}-name"
+                                       value="{{ current_name }}"
+                                       class="input input-bordered w-full {% if err %}input-error{% endif %}">
+                                {% if err %}<p class="text-error text-xs mt-1">{{ err }}</p>{% endif %}
+                            </td>
+                            <td class="text-center">
+                                <input type="checkbox"
+                                       name="group-{{ g.id }}-hidden"
+                                       class="checkbox"
+                                       {% if is_hidden %}checked{% endif %}>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="flex items-center justify-end gap-2 pt-4 mt-2 border-t border-base-200">
+                <a href="{{ url_for('admin.index') }}" class="btn btn-ghost">Cancel</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-device-floppy"></i>Save changes
+                </button>
+            </div>
+        </form>
+        {% else %}
+            {{ empty_state('users-group', 'No groups synced yet', 'Groups appear here once the SCIM provider has pushed them.') }}
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

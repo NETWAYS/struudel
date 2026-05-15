@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+{% from "_components.html" import section_header, empty_state %}
+
+{% block page_title %}{{ poll.title }}{% endblock %}
+
+{% macro option_icon(opt) %}
+    {% if opt.option_type.value == 'DATE' %}<i class="ti ti-calendar opacity-70"></i>
+    {% elif opt.option_type.value == 'DATETIME' %}<i class="ti ti-calendar-time opacity-70"></i>
+    {% else %}<i class="ti ti-abc opacity-70"></i>{% endif %}
+{% endmacro %}
+
+{% macro option_value(opt) %}
+    {%- if opt.option_type.value == 'DATE' -%}{{ opt.date_value.strftime('%Y-%m-%d') }}
+    {%- elif opt.option_type.value == 'DATETIME' -%}{{ opt.datetime_value | localtime }}
+    {%- else -%}{{ opt.text_value }}
+    {%- endif -%}
+{% endmacro %}
+
+{% macro status_badge(status) %}
+    {% set cls = {
+        'DRAFT': 'badge-ghost',
+        'ACTIVE': 'badge-success',
+        'CLOSED': 'badge-neutral',
+    }.get(status.value, 'badge-ghost') %}
+    <span class="badge {{ cls }}">{{ status.value | title }}</span>
+{% endmacro %}
+
+{% macro visibility_badge(visibility) %}
+    {% if visibility.value == 'PUBLIC' %}
+        <span class="badge badge-outline badge-primary">
+            <i class="ti ti-world text-sm"></i>Public
+        </span>
+    {% else %}
+        <span class="badge badge-outline">
+            <i class="ti ti-lock text-sm"></i>Private
+        </span>
+    {% endif %}
+{% endmacro %}
+
+{% macro mode_label(mode) -%}
+    {%- if mode.value == 'YES_NO_MAYBE' -%}Yes / No / Maybe
+    {%- elif mode.value == 'SINGLE_CHOICE' -%}Single choice
+    {%- else -%}Multiple choice
+    {%- endif -%}
+{%- endmacro %}
+
+{% block content %}
+<div class="max-w-3xl">
+
+    <div class="flex items-center gap-2 mb-4">
+        <a href="{{ url_for('polls.my') }}" class="btn btn-ghost btn-sm">
+            <i class="ti ti-arrow-left"></i>
+        </a>
+        <h1 class="text-2xl font-bold flex-1 truncate">{{ poll.title }}</h1>
+    </div>
+
+    {% with active='info' %}{% include "polls/_sub_nav.html" %}{% endwith %}
+
+    <div class="bg-base-100 rounded-box border border-base-300 shadow-sm divide-y divide-base-200">
+
+        <section class="p-6 space-y-4">
+            {% call section_header('info-square-rounded', 'Overview', 'primary') %}At-a-glance summary of this poll.{% endcall %}
+
+            <div class="flex flex-wrap items-center gap-2">
+                {{ status_badge(poll.status) }}
+                {{ visibility_badge(poll.visibility) }}
+                <span class="badge badge-outline">{{ mode_label(poll.response_mode) }}</span>
+                {% if poll.is_mandatory %}
+                <span class="badge badge-warning gap-1">
+                    <i class="ti ti-asterisk text-sm"></i>Mandatory
+                </span>
+                {% endif %}
+            </div>
+
+            {% if poll.description_short %}
+            <p class="text-base-content">{{ poll.description_short }}</p>
+            {% endif %}
+            {% if poll.description_long %}
+            <p class="text-sm text-base-content/60 whitespace-pre-line">{{ poll.description_long }}</p>
+            {% endif %}
+
+            <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
+                <div>
+                    <dt class="text-xs uppercase tracking-wider text-base-content/55 mb-1">Created by</dt>
+                    <dd class="text-sm">{{ created_by_name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs uppercase tracking-wider text-base-content/55 mb-1">Starts at</dt>
+                    <dd class="text-sm">{% if poll.starts_at %}{{ poll.starts_at | localtime }}{% else %}<span class="text-base-content/40">—</span>{% endif %}</dd>
+                </div>
+                <div>
+                    <dt class="text-xs uppercase tracking-wider text-base-content/55 mb-1">Ends at</dt>
+                    <dd class="text-sm">{% if poll.ends_at %}{{ poll.ends_at | localtime }}{% else %}<span class="text-base-content/40">—</span>{% endif %}</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="p-6 space-y-4">
+            {% call section_header('list', 'Options', 'success') %}
+                {{ options | length }} option{{ '' if options | length == 1 else 's' }}{% if poll.allow_custom_options %} &middot; voters can add their own{% endif %}
+            {% endcall %}
+
+            {% if options %}
+            <ul class="-mx-6 border-y border-base-200 divide-y divide-base-200">
+                {% for opt in options %}
+                <li class="flex items-center gap-3 px-6 py-2.5">
+                    <span class="text-xs text-base-content/40 font-mono w-6 text-right">{{ loop.index }}</span>
+                    {{ option_icon(opt) }}
+                    <span class="flex-1 text-sm">{{ option_value(opt) }}</span>
+                    {% if opt.is_custom %}
+                    <span class="badge badge-ghost badge-sm">custom</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            {{ empty_state('mood-empty', 'No options defined yet', 'Add some on the Edit tab.') }}
+            {% endif %}
+        </section>
+
+        {% if poll.visibility.value == 'PRIVATE' and (audience_responded or audience_pending) %}
+        {% set total = audience_responded|length + audience_pending|length %}
+        {% set pct = (audience_responded|length * 100 / total) | int if total else 0 %}
+        {% set prog_cls = 'progress-success' if pct >= 100 else ('progress-warning' if pct < 50 else 'progress-primary') %}
+        <section class="p-6 space-y-4">
+            {% call section_header('list-check', 'Audience response', ('warning' if poll.is_mandatory else 'secondary')) %}
+                {{ audience_responded|length }} of {{ total }} responded{% if poll.is_mandatory %} &middot; mandatory{% endif %}
+            {% endcall %}
+
+            <progress class="progress {{ prog_cls }} w-full h-2"
+                      value="{{ audience_responded|length }}" max="{{ total }}"></progress>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <div class="text-xs uppercase tracking-wider text-base-content/55 mb-2 flex items-center gap-1.5">
+                        <i class="ti ti-circle-check text-success"></i>
+                        Responded
+                        <span class="badge badge-ghost badge-sm">{{ audience_responded|length }}</span>
+                    </div>
+                    {% if audience_responded %}
+                    <ul class="space-y-1">
+                        {% for u in audience_responded %}
+                        <li class="text-sm flex items-center gap-2">
+                            <span class="w-1.5 h-1.5 rounded-full bg-success shrink-0"></span>
+                            <span class="truncate">{{ u.name or u.preferred_username }}</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="text-xs text-base-content/55 italic">Nobody yet.</div>
+                    {% endif %}
+                </div>
+                <div>
+                    <div class="text-xs uppercase tracking-wider text-base-content/55 mb-2 flex items-center gap-1.5">
+                        <i class="ti ti-clock {{ 'text-warning' if poll.is_mandatory else 'text-base-content/55' }}"></i>
+                        Pending
+                        <span class="badge {{ 'badge-warning' if poll.is_mandatory and audience_pending else 'badge-ghost' }} badge-sm">
+                            {{ audience_pending|length }}
+                        </span>
+                    </div>
+                    {% if audience_pending %}
+                    <ul class="space-y-1">
+                        {% for u in audience_pending %}
+                        <li class="text-sm flex items-center gap-2 group">
+                            <span class="w-1.5 h-1.5 rounded-full {{ 'bg-warning' if poll.is_mandatory else 'bg-base-content/30' }} shrink-0"></span>
+                            <span class="truncate flex-1 min-w-0">{{ u.name or u.preferred_username }}</span>
+                            {% if u.email %}
+                            <a href="mailto:{{ u.email }}?subject={{ ('Reminder: ' ~ poll.title) | urlencode }}"
+                               class="text-base-content/40 hover:text-info opacity-0 group-hover:opacity-100 transition-opacity"
+                               title="Send reminder email">
+                                <i class="ti ti-mail text-sm"></i>
+                            </a>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <div class="text-xs text-success italic flex items-center gap-1">
+                        <i class="ti ti-check"></i>Everyone has responded.
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="p-6 space-y-4">
+            {% call section_header('share', 'Share link', 'info') %}Anyone with access can use this link. Authentication is still required.{% endcall %}
+
+            <div x-data="{
+                    copied: false,
+                    link: window.location.origin + '{{ url_for('polls.share', token=poll.share_token) }}',
+                    copy() {
+                        navigator.clipboard.writeText(this.link).then(() => {
+                            this.copied = true;
+                            setTimeout(() => this.copied = false, 2000);
+                        });
+                    }
+                 }"
+                 class="flex flex-wrap items-center gap-2">
+                <label class="input input-sm flex-1 min-w-64 flex items-center gap-2">
+                    <i class="ti ti-link opacity-60"></i>
+                    <input type="text" readonly :value="link"
+                           @click="$event.target.select()"
+                           class="grow font-mono text-xs outline-none">
+                </label>
+                <button type="button" @click="copy()" class="btn btn-sm">
+                    <i class="ti ti-copy" x-show="!copied"></i>
+                    <i class="ti ti-check text-success" x-show="copied" x-cloak></i>
+                    <span x-text="copied ? 'Copied' : 'Copy'"></span>
+                </button>
+                {% if is_owner %}
+                <form action="{{ url_for('polls.share_regenerate', poll_id=poll.id) }}"
+                      method="post"
+                      data-confirm="Regenerate share link? The current link will stop working.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-sm btn-ghost" title="Regenerate link">
+                        <i class="ti ti-refresh"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </section>
+
+        {% if is_owner and response_count > 0 %}
+        <section class="p-6 space-y-4">
+            {% call section_header('alert-triangle', 'Danger zone', 'error') %}Destructive actions. No undo.{% endcall %}
+
+            <div class="flex flex-wrap items-center justify-between gap-4 rounded-lg border border-error/30 bg-error/5 p-3">
+                <div class="flex-1 min-w-0">
+                    <div class="font-medium">Delete all responses</div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        {{ response_count }} response{% if response_count != 1 %}s{% endif %} will be removed permanently.
+                    </div>
+                </div>
+                <form action="{{ url_for('polls.responses_clear', poll_id=poll.id) }}" method="post"
+                      data-confirm="Delete {{ response_count }} response{% if response_count != 1 %}s{% endif %}? This cannot be undone.">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-error btn-sm btn-outline">
+                        <i class="ti ti-trash"></i>Delete responses
+                    </button>
+                </form>
+            </div>
+        </section>
+        {% endif %}
+
+    </div>
+</div>
+{% endblock %}

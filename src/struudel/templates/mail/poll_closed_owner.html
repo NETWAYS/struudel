@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Poll closed: {{ poll.title }}{% endblock %}
+{% block body %}
+<h2 style="margin-top: 0;">Your poll has closed</h2>
+<p><strong>{{ poll.title }}</strong> is now closed.</p>
+<p>Total responses: <strong>{{ response_count }}</strong>.</p>
+<p style="margin-top: 24px;">
+<a href="{{ poll_url }}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+View final results
+</a>
+</p>
+{% endblock %}

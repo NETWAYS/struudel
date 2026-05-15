@@ -1,0 +1,24 @@
+{# Renders alert markup for pending flashes. Consumes via get_flashed_messages.
+   Used by:
+   - base.html (initial full-page render) inside #flash-region
+   - _flashes_oob.html (HTMX responses) wrapped in hx-swap-oob #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% for category, message in messages %}
+        {% set alert_cls = {
+            'info': 'alert-info',
+            'success': 'alert-success',
+            'warning': 'alert-warning',
+            'error': 'alert-error',
+        }.get(category, 'alert-info') %}
+        {% set icon = {
+            'info': 'info-circle',
+            'success': 'circle-check',
+            'warning': 'alert-triangle',
+            'error': 'alert-triangle',
+        }.get(category, 'info-circle') %}
+        <div role="alert" class="alert {{ alert_cls }} alert-soft mb-4">
+            <i class="ti ti-{{ icon }}"></i>
+            <span>{{ message }}</span>
+        </div>
+    {% endfor %}
+{% endwith %}

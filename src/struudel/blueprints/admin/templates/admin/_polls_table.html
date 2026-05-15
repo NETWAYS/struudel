@@ -1,0 +1,140 @@
+{#
+  Partial: filter pills + polls admin table + pager.
+  Context: polls (list[Poll]), total (int), page (int), per_page (int),
+           title_q (str), creator_q (str), status (str).
+  Re-rendered into #polls-table by the search inputs, filter pills, pager
+  and inline actions. Lives inside the swap target so back/forward navigation
+  restores filter pills' active state alongside the table.
+#}
+{% from "_components.html" import empty_state %}
+{% from "_pager.html" import render_pager %}
+
+{% set total_pages = ((total - 1) // per_page) + 1 if total else 1 %}
+{% set filter_options = [
+    ('', 'All', 'list'),
+    ('ACTIVE', 'Active', 'player-play'),
+    ('CLOSED', 'Closed', 'lock'),
+    ('DRAFT', 'Draft', 'pencil'),
+    ('TEMPLATE', 'Template', 'copy'),
+] %}
+
+{% macro status_badge(value) %}
+    {% set cls = {
+        'DRAFT': 'badge-ghost',
+        'ACTIVE': 'badge-success',
+        'CLOSED': 'badge-neutral',
+        'TEMPLATE': 'badge-info',
+    }.get(value, 'badge-ghost') %}
+    <span class="badge {{ cls }} badge-sm">{{ value | title }}</span>
+{% endmacro %}
+
+{# Hidden state for the search inputs above the swap target: read by their
+   hx-include so each keystroke carries the currently active status filter. #}
+<input type="hidden" id="polls-status-state" name="status" value="{{ status }}">
+
+<div class="join">
+    {% for value, label, icon in filter_options %}
+    <button type="button"
+            class="join-item btn btn-sm {% if status == value %}btn-active btn-primary{% endif %}"
+            hx-get="{{ url_for('admin.polls') }}"
+            hx-vals='{"status": {{ value | tojson }} }'
+            hx-include="#polls-title-q, #polls-creator-q"
+            hx-target="#polls-table"
+            hx-push-url="true">
+        <i class="ti ti-{{ icon }}"></i>{{ label }}
+    </button>
+    {% endfor %}
+</div>
+
+{% if polls %}
+<div class="overflow-x-auto rounded-box border border-base-300 mt-3">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Creator</th>
+                <th>Status</th>
+                <th>Visibility</th>
+                <th>Created</th>
+                <th class="w-20 text-end">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for poll in polls %}
+            <tr class="hover:bg-base-200/40 transition-colors">
+                <td>
+                    <a href="{{ url_for('polls.detail', poll_id=poll.id) }}"
+                       class="link link-hover font-medium">{{ poll.title }}</a>
+                </td>
+                <td class="text-sm">
+                    <span class="flex items-center gap-1.5 text-base-content/80">
+                        <i class="ti ti-user text-base-content/50"></i>
+                        {{ poll.created_by.name or poll.created_by.preferred_username }}
+                    </span>
+                </td>
+                <td>{{ status_badge(poll.status.value) }}</td>
+                <td class="text-sm">
+                    {% if poll.visibility.value == 'PUBLIC' %}
+                        <span class="inline-flex items-center gap-1 text-base-content/70"
+                              title="Public">
+                            <i class="ti ti-world"></i>Public
+                        </span>
+                    {% else %}
+                        <span class="inline-flex items-center gap-1 text-base-content/70"
+                              title="Private">
+                            <i class="ti ti-lock"></i>Private
+                        </span>
+                    {% endif %}
+                </td>
+                <td class="text-sm text-base-content/60">
+                    {{ poll.created_at | localtime }}
+                </td>
+                <td>
+                    <div class="flex gap-1 justify-end">
+                        <form method="post"
+                              action="{{ url_for('admin.poll_delete', poll_id=poll.id) }}"
+                              hx-post="{{ url_for('admin.poll_delete', poll_id=poll.id) }}"
+                              hx-target="#polls-table"
+                              hx-swap="innerHTML"
+                              data-confirm="Delete poll “{{ poll.title }}”? This removes all options, responses and audience entries."
+                              class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="title" value="{{ title_q }}">
+                            <input type="hidden" name="creator" value="{{ creator_q }}">
+                            <input type="hidden" name="status" value="{{ status }}">
+                            <input type="hidden" name="page" value="{{ page }}">
+                            <button type="submit"
+                                    class="btn btn-ghost btn-xs text-base-content/40 hover:text-error"
+                                    title="Delete"
+                                    aria-label="Delete">
+                                <i class="ti ti-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{{ render_pager(
+    endpoint='admin.polls',
+    page=page,
+    total_pages=total_pages,
+    target='#polls-table',
+    params={'title': title_q, 'creator': creator_q, 'status': status},
+    total=total,
+) }}
+
+{% else %}
+    <div class="mt-3">
+        {% if title_q or creator_q or status %}
+            {{ empty_state('search-off', 'No polls match your filter', 'Try a different search or pick another filter.') }}
+        {% else %}
+            {{ empty_state('list-check', 'No polls yet') }}
+        {% endif %}
+    </div>
+{% endif %}
+
+{% include "_flashes_oob.html" %}

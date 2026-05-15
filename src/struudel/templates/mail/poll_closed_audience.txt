@@ -1,0 +1,11 @@
+{% extends "base.txt" %}
+{% block body %}
+Hi {{ recipient_user.given_name or recipient_user.name }},
+
+The poll "{{ poll.title }}" (by
+{{ poll.created_by.name or poll.created_by.preferred_username }})
+has closed.
+
+View results:
+  {{ poll_url }}
+{% endblock %}

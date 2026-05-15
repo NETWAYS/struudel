@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
+    <title>{% block page_title %}{% endblock %}{% if self.page_title()|trim %} &middot; {% endif %}Struudel</title>
+    <link rel="icon" type="image/png" sizes="64x64" href="{{ static_url('img/struudel-64px.png') }}">
+    <link rel="stylesheet" href="{{ static_url('vendor/tabler-icons/tabler-icons.min.css') }}">
+    <link rel="stylesheet" href="{{ static_url('css/app.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-base-200 flex flex-col">
+    <header class="bg-base-100 border-b border-base-200 sticky top-0 z-30">
+        <div class="container mx-auto max-w-6xl px-4 h-14 flex items-center gap-2">
+
+            <a class="flex items-center gap-2 font-semibold text-base-content hover:opacity-80 transition-opacity"
+               href="{{ url_for('dashboard.index') }}">
+                <img src="{{ static_url('img/struudel-512px.png') }}" alt="" width="40" height="40">
+                <span class="text-lg tracking-tight">Struudel</span>
+            </a>
+
+            {% if current_user %}
+            <nav class="hidden sm:flex items-center gap-1 ms-4">
+                {% set on_dashboard = request.endpoint == 'dashboard.index' %}
+                {% set on_polls = request.endpoint and request.endpoint.startswith('polls.') %}
+                <a href="{{ url_for('dashboard.index') }}"
+                   class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5
+                          {% if on_dashboard %}bg-primary/10 text-primary{% else %}text-base-content/70 hover:bg-base-200/60 hover:text-base-content{% endif %}">
+                    <i class="ti ti-layout-dashboard"></i>Dashboard
+                </a>
+                <a href="{{ url_for('polls.my') }}"
+                   class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5
+                          {% if on_polls %}bg-primary/10 text-primary{% else %}text-base-content/70 hover:bg-base-200/60 hover:text-base-content{% endif %}">
+                    <i class="ti ti-list-check"></i>Polls
+                </a>
+                {% if current_user.is_superuser %}
+                {% set on_admin = request.endpoint and request.endpoint.startswith('admin.') %}
+                <a href="{{ url_for('admin.index') }}"
+                   class="px-3 py-1.5 rounded-md text-sm font-medium transition-colors flex items-center gap-1.5
+                          {% if on_admin %}bg-primary/10 text-primary{% else %}text-base-content/70 hover:bg-base-200/60 hover:text-base-content{% endif %}">
+                    <i class="ti ti-shield-lock"></i>Admin
+                </a>
+                {% endif %}
+            </nav>
+            {% endif %}
+
+            <div class="flex-1"></div>
+
+            {% if current_user %}
+                <div class="dropdown dropdown-end">
+                    <div tabindex="0" role="button"
+                         class="flex items-center gap-2 ps-1 pe-2 py-1 rounded-full hover:bg-base-200/60 transition-colors cursor-pointer">
+                        <div class="avatar" x-data="{ failed: false }">
+                            <div class="w-8 h-8 rounded-full bg-base-200 flex items-center justify-center overflow-hidden">
+                                <img src="{{ url_for('user.avatar') }}"
+                                     alt="{{ current_user.preferred_username }}"
+                                     class="w-full h-full object-cover"
+                                     x-show="!failed"
+                                     @error="failed = true">
+                                <i x-show="failed" x-cloak class="ti ti-user text-xl text-base-content/60"></i>
+                            </div>
+                        </div>
+                        <span class="hidden md:inline text-sm font-medium max-w-32 truncate">
+                            {{ current_user.name or current_user.preferred_username }}
+                        </span>
+                        <i class="ti ti-chevron-down text-xs text-base-content/55"></i>
+                    </div>
+
+                    <div tabindex="0"
+                         class="dropdown-content mt-2 z-30 w-64 bg-base-100 rounded-box border border-base-300 shadow-lg overflow-hidden">
+
+                        <div class="flex items-center gap-3 px-4 py-3">
+                            <div class="avatar shrink-0" x-data="{ failed: false }">
+                                <div class="w-10 h-10 rounded-full bg-base-200 flex items-center justify-center overflow-hidden">
+                                    <img src="{{ url_for('user.avatar') }}"
+                                         alt=""
+                                         class="w-full h-full object-cover"
+                                         x-show="!failed"
+                                         @error="failed = true">
+                                    <i x-show="failed" x-cloak class="ti ti-user text-2xl text-base-content/60"></i>
+                                </div>
+                            </div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-medium truncate">{{ current_user.name or current_user.preferred_username }}</div>
+                                {% if current_user.email %}
+                                <div class="text-xs text-base-content/60 truncate">{{ current_user.email }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <form method="post" action="{{ url_for('auth.logout') }}"
+                              class="border-t border-base-200">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit"
+                                    class="w-full flex items-center justify-between px-4 py-2.5 text-sm text-base-content/80 hover:bg-error/10 hover:text-error transition-colors">
+                                <span class="flex items-center gap-2">
+                                    <i class="ti ti-logout"></i>Logout
+                                </span>
+                                <i class="ti ti-chevron-right text-xs opacity-50"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            {% else %}
+                <a class="btn btn-primary btn-sm" href="{{ url_for('auth.login') }}">
+                    <i class="ti ti-login"></i>Login
+                </a>
+            {% endif %}
+        </div>
+    </header>
+    <main class="container mx-auto max-w-6xl px-4 py-6 flex-1 w-full">
+        <div id="flash-region">{% include "_flashes.html" %}</div>
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="border-t border-base-300 py-3 text-center text-xs text-base-content/60">
+        {% block footer %}Struudel &middot; v{{ app_version }} ({{ app_commit }}){% endblock %}
+    </footer>
+    <script defer src="{{ static_url('vendor/alpine/alpine.min.js') }}"></script>
+    <script src="{{ static_url('vendor/htmx/htmx.min.js') }}"></script>
+    <script src="{{ static_url('vendor/sortablejs/Sortable.min.js') }}"></script>
+    <script src="{{ static_url('js/struudel.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

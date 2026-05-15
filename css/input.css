@@ -1,0 +1,34 @@
+@import "tailwindcss";
+
+@source not "./tailwindcss";
+@source not "./daisyui{,*}.mjs";
+@source "../src/struudel/templates";
+@source "../src/struudel/blueprints/**/templates";
+
+@plugin "./daisyui.mjs";
+
+/*
+ * Safelist for dynamically constructed accent classes used by the
+ * `section_header(icon, title, color)` Jinja macro in
+ * src/struudel/blueprints/polls/templates/polls/_form_helpers.html.
+ *
+ * Tailwind cannot statically detect `bg-{{ color }}/10` interpolations,
+ * so the supported colors are listed here explicitly. Add a color here
+ * before passing it to the macro.
+ */
+@source inline("text-primary text-info text-success text-secondary text-warning text-error");
+@source inline("bg-primary/10 bg-info/10 bg-success/10 bg-secondary/10 bg-warning/10 bg-error/10");
+
+/* Alpine.js: hide elements marked with x-cloak until Alpine initialises them. */
+[x-cloak] {
+    display: none !important;
+}
+
+/* Tabler Icons: tweak the default rendering. The vendored .ti class
+   inherits `1em` from its parent, which makes line-style icons look
+   thin/blurred at small text sizes. Slightly oversize and re-align
+   them so they feel optical-balanced inline. */
+.ti {
+    font-size: 1.15em;
+    vertical-align: -0.125em;
+}

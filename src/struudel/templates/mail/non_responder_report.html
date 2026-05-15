@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Non-responders report: {{ poll.title }}{% endblock %}
+{% block body %}
+<h2 style="margin-top: 0;">Non-responders report</h2>
+<p>Your <strong>required</strong> poll <strong>{{ poll.title }}</strong>
+has closed. The following audience members did not respond:</p>
+{% if non_responders %}
+<ul style="padding-left: 20px;">
+{% for u in non_responders %}
+<li>{{ u.name or u.preferred_username }} &lt;{{ u.email }}&gt;</li>
+{% endfor %}
+</ul>
+{% else %}
+<p>Everyone responded. 🎉</p>
+{% endif %}
+<p style="margin-top: 24px;">
+<a href="{{ poll_url }}" style="display: inline-block; background: #2563eb; color: #ffffff; padding: 10px 18px; border-radius: 6px; text-decoration: none; font-weight: 600;">
+Open poll
+</a>
+</p>
+{% endblock %}

@@ -1,0 +1,87 @@
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-env-file: &env-file
+  - path: .env
+    required: false
+
+x-no-new-privileges: &no-new-privileges
+  security_opt:
+    - no-new-privileges:true
+
+x-app-security: &app-security
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+
+x-service-base: &service-base
+  build:
+    context: .
+    dockerfile: Dockerfile
+  env_file: *env-file
+  restart: unless-stopped
+  depends_on:
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+  logging: *logging
+
+services:
+  app:
+    <<: [*service-base, *app-security]
+    container_name: struudel-app
+    command: ["app"]
+    ports:
+      - "5009:5009"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5009/_health/live')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  worker:
+    <<: [*service-base, *app-security]
+    container_name: struudel-worker
+    command: ["worker"]
+
+  redis:
+    <<: *no-new-privileges
+    image: redis:7-alpine
+    container_name: struudel-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    logging: *logging
+
+  postgres:
+    <<: *no-new-privileges
+    image: postgres:17-alpine
+    container_name: struudel-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-struudel}
+      POSTGRES_USER: ${DB_USER:?DB_USER must be set in .env}
+      POSTGRES_PASSWORD: ${DB_PASS:?DB_PASS must be set in .env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    logging: *logging
+
+volumes:
+  redis-data:
+  postgres-data:

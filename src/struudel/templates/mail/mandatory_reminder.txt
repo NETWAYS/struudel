@@ -1,0 +1,21 @@
+{% extends "base.txt" %}
+{% block body %}
+Hi {{ recipient_user.given_name or recipient_user.name }},
+
+{% if tier == "72h" %}
+This is a reminder that you haven't yet responded to the required poll:
+{% elif tier == "24h" %}
+Reminder: you haven't yet responded. The poll closes in about 24 hours.
+{% else %}
+FINAL REMINDER: the poll closes in about 2 hours and your response
+is still missing.
+{% endif %}
+
+  {{ poll.title }}
+{% if poll.ends_at %}
+  Closes at {{ poll.ends_at.strftime("%Y-%m-%d %H:%M UTC") }}.
+{% endif %}
+
+Respond now:
+  {{ vote_url }}
+{% endblock %}

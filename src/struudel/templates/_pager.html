@@ -1,0 +1,63 @@
+{#
+  Generic HTMX-aware pager.
+
+  Renders nothing when total_pages <= 1.
+
+  Usage:
+    {% from "_pager.html" import render_pager %}
+    {{ render_pager(
+        endpoint='admin.users',
+        page=page,
+        total_pages=total_pages,
+        target='#users-table',
+        params={'q': q, 'filter': filter},
+    ) }}
+
+  - endpoint:    Flask endpoint name passed to url_for
+  - page:        current 1-based page
+  - total_pages: total page count (>=1)
+  - target:      hx-target selector
+  - params:      dict of extra query params that survive across page navigation
+#}
+{% macro render_pager(endpoint, page, total_pages, target, params={}, total=None) %}
+{% if total_pages > 1 %}
+<div class="flex items-center justify-between mt-3 text-sm">
+    <span class="text-base-content/60">
+        Page {{ page }} of {{ total_pages }}
+        {% if total is not none %}<span class="text-base-content/40">·</span> {{ total }} total{% endif %}
+    </span>
+    <div class="join">
+        <button type="button" class="join-item btn btn-sm"
+                title="First page" aria-label="First page"
+                {% if page <= 1 %}disabled{% endif %}
+                hx-get="{{ url_for(endpoint, page=1, **params) }}"
+                hx-target="{{ target }}"
+                hx-push-url="true">
+            <i class="ti ti-chevrons-left"></i>
+        </button>
+        <button type="button" class="join-item btn btn-sm"
+                {% if page <= 1 %}disabled{% endif %}
+                hx-get="{{ url_for(endpoint, page=page - 1, **params) }}"
+                hx-target="{{ target }}"
+                hx-push-url="true">
+            <i class="ti ti-chevron-left"></i>Prev
+        </button>
+        <button type="button" class="join-item btn btn-sm"
+                {% if page >= total_pages %}disabled{% endif %}
+                hx-get="{{ url_for(endpoint, page=page + 1, **params) }}"
+                hx-target="{{ target }}"
+                hx-push-url="true">
+            Next<i class="ti ti-chevron-right"></i>
+        </button>
+        <button type="button" class="join-item btn btn-sm"
+                title="Last page" aria-label="Last page"
+                {% if page >= total_pages %}disabled{% endif %}
+                hx-get="{{ url_for(endpoint, page=total_pages, **params) }}"
+                hx-target="{{ target }}"
+                hx-push-url="true">
+            <i class="ti ti-chevrons-right"></i>
+        </button>
+    </div>
+</div>
+{% endif %}
+{% endmacro %}

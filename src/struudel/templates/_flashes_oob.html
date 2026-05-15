@@ -1,0 +1,4 @@
+{# OOB-wrapped flashes for HTMX responses. Appends each pending flash to
+   #flash-region in the live DOM. Safe to include on every HTMX-returned partial
+   — emits empty markup when no flashes are pending. #}
+<div hx-swap-oob="beforeend:#flash-region">{% include "_flashes.html" %}</div>

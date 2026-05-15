@@ -1,0 +1,1 @@
+{% if tier == "2h" %}[Final reminder] {% elif tier == "24h" %}[Reminder] {% endif %}Please respond: {{ poll.title }}

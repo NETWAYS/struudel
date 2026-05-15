@@ -1,0 +1,36 @@
+{#
+  Sub-Nav for a single poll (Info / Vote / Edit / Audience).
+  Parameters:
+    poll           - Poll
+    active         - 'info' | 'vote' | 'edit' | 'audience'
+    is_owner       - bool
+    show_info_tab  - optional bool; defaults to is_owner
+                     (non-owners don't see Info because /polls/<id> redirects them to Vote)
+#}
+{% set show_info = show_info_tab if show_info_tab is defined else is_owner %}
+<div role="tablist" class="tabs tabs-border mb-4">
+    {% if show_info %}
+    <a role="tab"
+       class="tab {% if active == 'info' %}tab-active{% endif %}"
+       href="{{ url_for('polls.detail', poll_id=poll.id) }}">
+        <i class="ti ti-info-circle me-1"></i>Info
+    </a>
+    {% endif %}
+    <a role="tab"
+       class="tab {% if active == 'vote' %}tab-active{% endif %}"
+       href="{{ url_for('polls.vote', poll_id=poll.id) }}">
+        <i class="ti ti-checkbox me-1"></i>Vote
+    </a>
+    {% if is_owner %}
+    <a role="tab"
+       class="tab {% if active == 'edit' %}tab-active{% endif %}"
+       href="{{ url_for('polls.edit', poll_id=poll.id) }}">
+        <i class="ti ti-edit me-1"></i>Edit
+    </a>
+    <a role="tab"
+       class="tab {% if active == 'audience' %}tab-active{% endif %}"
+       href="{{ url_for('polls.audience', poll_id=poll.id) }}">
+        <i class="ti ti-users me-1"></i>Audience
+    </a>
+    {% endif %}
+</div>

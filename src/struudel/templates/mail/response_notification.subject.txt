@@ -1,0 +1,1 @@
+New response on "{{ poll.title }}"

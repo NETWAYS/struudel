@@ -1,0 +1,533 @@
+{% extends "base.html" %}
+{% from "_components.html" import section_header, empty_state, field_error, legend_icon %}
+
+{% set is_new = poll is none %}
+
+{% block page_title %}{% if is_new %}New poll{% else %}Edit {{ poll.title }}{% endif %}{% endblock %}
+
+{% block content %}
+<div class="flex items-center gap-2 mb-4">
+    <a href="{{ url_for('polls.my') }}" class="btn btn-ghost btn-sm">
+        <i class="ti ti-arrow-left"></i>
+    </a>
+    <h1 class="text-2xl font-bold flex-1 truncate">
+        {% if is_new %}New poll{% else %}{{ poll.title }}{% endif %}
+    </h1>
+</div>
+
+{% if not is_new %}
+    {% with active='edit', is_owner=True %}{% include "polls/_sub_nav.html" %}{% endwith %}
+{% endif %}
+
+{% if errors %}
+<div role="alert" class="alert alert-error alert-soft mb-4 max-w-3xl">
+    <i class="ti ti-alert-triangle"></i>
+    <div>
+        <div class="font-medium">Form contains errors</div>
+        <ul class="text-sm opacity-80 list-disc list-inside">
+            {% for err in errors %}
+            <li>{{ err.msg }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+{% endif %}
+
+{% if destructive_warning %}
+<div role="alert" class="alert alert-warning alert-soft mb-4 max-w-3xl">
+    <i class="ti ti-alert-triangle"></i>
+    <div>
+        <div class="font-medium">
+            {{ destructive_warning.response_count }} response{% if destructive_warning.response_count != 1 %}s{% endif %} already submitted
+        </div>
+        <div class="text-sm opacity-80">
+            Changing or removing options will permanently delete votes for affected options.
+            Save again to confirm and proceed.
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<form method="post"
+      action="{% if is_new %}{{ url_for('polls.new') }}{% else %}{{ url_for('polls.edit', poll_id=poll.id) }}{% endif %}"
+      class="max-w-3xl bg-base-100 rounded-box border border-base-300 shadow-sm divide-y divide-base-200"
+      x-data='{
+          allowEdit: {{ "true" if form_data.get("allow_edit_responses") else "false" }},
+          customOptions: {{ "true" if form_data.get("allow_custom_options") else "false" }},
+          autoDelete: {{ "true" if (is_new or form_data.get("auto_delete")) else "false" }},
+          notifyOwnerOnResponse: {{ "true" if form_data.get("notify_owner_on_response") else "false" }},
+          notifyAudienceOnClose: {{ "true" if (is_new or form_data.get("notify_audience_on_close")) else "false" }},
+          anonymousVotes: {{ "true" if form_data.get("anonymous_votes") else "false" }},
+          hideResultsUntilClose: {{ "true" if form_data.get("hide_results_until_close") else "false" }},
+          maxYesChoices: {{ form_data.get("max_yes_choices", "") | tojson }},
+          allowGuests: {{ "true" if form_data.get("allow_guests") else "false" }},
+          maxGuests: {{ form_data.get("max_guests", "") | tojson }},
+          visibility: {{ form_data.get("visibility", "PRIVATE") | tojson }},
+          isMandatory: {{ "true" if form_data.get("is_mandatory") else "false" }},
+          status: {{ form_data.get("status", "DRAFT") | tojson }},
+          responseMode: {{ form_data.get("response_mode", "YES_NO_MAYBE") | tojson }},
+          statusHelp: {
+              DRAFT: "Hidden from the audience. Saved but not yet open for voting.",
+              ACTIVE: "Open for voting. Audience members can submit responses.",
+              CLOSED: "No more votes accepted. Results remain visible.",
+          },
+          visibilityHelp: {
+              PRIVATE: "Only people in the audience can see and vote on this poll.",
+              PUBLIC: "Visible to every authenticated user. Audience invitations are still sent.",
+          },
+          modeHelp: {
+              YES_NO_MAYBE: "Voters mark each option as Yes, Maybe, or No.",
+              SINGLE_CHOICE: "Voters pick exactly one option.",
+              MULTI_CHOICE: "Voters pick any number of options (with optional cap).",
+          }
+      }'
+      x-effect="if (visibility === 'PUBLIC') isMandatory = false">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    {% if destructive_warning %}
+    <input type="hidden" name="confirm_destructive" value="1">
+    {% endif %}
+
+    <section class="p-6 space-y-4">
+        {% call section_header('info-square-rounded', 'Basics') %}What this poll is about.{% endcall %}
+
+        <fieldset class="fieldset">
+            <legend class="fieldset-legend">Title *</legend>
+            <input type="text" id="title" name="title" required maxlength="200"
+                   value="{{ form_data.get('title', '') }}"
+                   placeholder="e.g. Christmas dinner date"
+                   class="input w-full">
+            {{ field_error(errors, 'title') }}
+        </fieldset>
+
+        <fieldset class="fieldset">
+            <legend class="fieldset-legend">Short description</legend>
+            <input type="text" id="description_short" name="description_short"
+                   value="{{ form_data.get('description_short', '') }}"
+                   placeholder="One-line tagline shown next to the title"
+                   class="input w-full">
+        </fieldset>
+
+        <fieldset class="fieldset">
+            <legend class="fieldset-legend">Description</legend>
+            <textarea id="description_long" name="description_long" rows="4"
+                      placeholder="Optional details, context, links…"
+                      class="textarea w-full">{{ form_data.get('description_long', '') }}</textarea>
+        </fieldset>
+    </section>
+
+    <section class="p-6 space-y-4">
+        {% call section_header('adjustments-horizontal', 'Configuration', 'info') %}How voting works and when.{% endcall %}
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">{{ legend_icon('pulse') }}Status</legend>
+                <select id="status" name="status" x-model="status" class="select w-full">
+                    <option value="DRAFT">Draft</option>
+                    <option value="ACTIVE">Active</option>
+                    <option value="CLOSED">Closed</option>
+                </select>
+                <p class="text-xs text-base-content/60 mt-1" x-text="statusHelp[status]"></p>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">{{ legend_icon('eye') }}Visibility</legend>
+                <select id="visibility" name="visibility" x-model="visibility" class="select w-full">
+                    <option value="PRIVATE">Private</option>
+                    <option value="PUBLIC">Public</option>
+                </select>
+                <p class="text-xs text-base-content/60 mt-1" x-text="visibilityHelp[visibility]"></p>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">{{ legend_icon('list-check') }}Response mode</legend>
+                <select id="response_mode" name="response_mode" x-model="responseMode" class="select w-full">
+                    <option value="YES_NO_MAYBE">Yes / No / Maybe</option>
+                    <option value="SINGLE_CHOICE">Single choice</option>
+                    <option value="MULTI_CHOICE">Multiple choice</option>
+                </select>
+                <p class="text-xs text-base-content/60 mt-1" x-text="modeHelp[responseMode]"></p>
+                <div x-show="responseMode === 'MULTI_CHOICE'" x-cloak class="mt-3">
+                    <label class="text-xs text-base-content/70 font-medium">Maximum Yes selections</label>
+                    <div class="flex gap-2 mt-1">
+                        <input type="number" name="max_yes_choices"
+                               min="1" max="50"
+                               x-model="maxYesChoices"
+                               placeholder="No limit"
+                               class="input input-sm w-32">
+                        <button type="button" x-show="maxYesChoices !== '' && maxYesChoices !== null" x-cloak
+                                @click="maxYesChoices = ''"
+                                class="btn btn-ghost btn-sm btn-square text-base-content/40 hover:text-error"
+                                title="Clear">
+                            <i class="ti ti-x"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-base-content/60 mt-1">
+                        Leave empty for no cap. Voters can pick at most this many options.
+                    </p>
+                </div>
+            </fieldset>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">{{ legend_icon('player-play') }}Starts at</legend>
+                <div x-data='dateHourPicker({{ form_data.get("starts_at", "") | tojson }})' class="flex gap-2">
+                    <input type="date" x-model="date" class="input flex-1">
+                    <select x-model="hour" class="select w-28">
+                        <option value="">—</option>
+                        {% for h in range(24) %}
+                        <option value="{{ '%02d' % h }}">{{ '%02d' % h }}:00</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" x-show="date || hour" x-cloak @click="clear()"
+                            class="btn btn-ghost btn-square text-base-content/40 hover:text-error"
+                            title="Clear">
+                        <i class="ti ti-x"></i>
+                    </button>
+                    <input type="hidden" name="starts_at" :value="combined()">
+                </div>
+            </fieldset>
+            <fieldset class="fieldset">
+                <legend class="fieldset-legend">{{ legend_icon('player-stop') }}Ends at</legend>
+                <div x-data='dateHourPicker({{ form_data.get("ends_at", "") | tojson }})' class="flex gap-2">
+                    <input type="date" x-model="date" class="input flex-1">
+                    <select x-model="hour" class="select w-28">
+                        <option value="">—</option>
+                        {% for h in range(24) %}
+                        <option value="{{ '%02d' % h }}">{{ '%02d' % h }}:00</option>
+                        {% endfor %}
+                    </select>
+                    <button type="button" x-show="date || hour" x-cloak @click="clear()"
+                            class="btn btn-ghost btn-square text-base-content/40 hover:text-error"
+                            title="Clear">
+                        <i class="ti ti-x"></i>
+                    </button>
+                    <input type="hidden" name="ends_at" :value="combined()">
+                </div>
+            </fieldset>
+        </div>
+    </section>
+
+    <section class="p-6 space-y-4">
+        {% call section_header('list', 'Options', 'success') %}What voters choose between.{% endcall %}
+
+        <div class="rounded-lg bg-base-200/40 border border-base-200 p-3 text-xs text-base-content/60 space-y-1.5">
+            <div class="flex flex-wrap gap-x-4 gap-y-1">
+                <span><i class="ti ti-calendar text-primary me-1"></i><strong>Date</strong> — a calendar day</span>
+                <span><i class="ti ti-calendar-time text-primary me-1"></i><strong>Date + time</strong> — a specific slot</span>
+                <span><i class="ti ti-abc text-primary me-1"></i><strong>Text</strong> — any free-text choice</span>
+            </div>
+            <div class="text-base-content/55">
+                <i class="ti ti-grip-vertical"></i>
+                Drag the handle to reorder. Voters see options in this order.
+            </div>
+        </div>
+
+        {% set has_option_errors = false %}
+        {% for err in errors %}
+            {% if err.loc and err.loc[0] == 'options' %}{% set has_option_errors = true %}{% endif %}
+        {% endfor %}
+        {% if has_option_errors %}
+        <div role="alert" class="alert alert-warning alert-soft text-sm">
+            <i class="ti ti-alert-triangle"></i>
+            <span>One or more options are invalid. Please review.</span>
+        </div>
+        {% endif %}
+
+        <div x-data='optionsEditor({{ poll_options | tojson }})' class="space-y-2">
+            <ul x-ref="list" class="space-y-2">
+                <template x-for="(opt, idx) in options" :key="opt._uid">
+                    <li class="group flex items-stretch gap-2 bg-base-100 border border-base-300 rounded-lg p-2 hover:border-base-content/20 transition-colors">
+                        <div class="flex items-center px-1 text-base-content/40 group-hover:text-base-content/60 cursor-grab handle transition-colors">
+                            <i class="ti ti-grip-vertical"></i>
+                        </div>
+                        <select x-model="opt.type"
+                                class="select select-sm w-36">
+                            <option value="DATE">Date</option>
+                            <option value="DATETIME">Date + time</option>
+                            <option value="TEXT">Text</option>
+                        </select>
+                        <template x-if="opt.type === 'DATE'">
+                            <input type="date" x-model="opt.date_value"
+                                   class="input input-sm flex-1">
+                        </template>
+                        <template x-if="opt.type === 'DATETIME'">
+                            <div class="flex gap-2 flex-1">
+                                <input type="date" x-model="opt.datetime_date" class="input input-sm flex-1">
+                                <select x-model="opt.datetime_hour" class="select select-sm w-24">
+                                    {% for h in range(24) %}
+                                    <option value="{{ '%02d' % h }}">{{ '%02d' % h }}:00</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </template>
+                        <template x-if="opt.type === 'TEXT'">
+                            <input type="text" x-model="opt.text_value"
+                                   placeholder="Option text"
+                                   class="input input-sm flex-1">
+                        </template>
+                        <button type="button" @click="remove(idx)"
+                                class="btn btn-ghost btn-sm text-base-content/40 hover:text-error" title="Remove">
+                            <i class="ti ti-trash"></i>
+                        </button>
+                    </li>
+                </template>
+            </ul>
+
+            <div x-show="options.length === 0">
+                {{ empty_state('circle-plus', 'No options yet', 'Add the first one below.') }}
+            </div>
+
+            <button type="button" @click="add()" class="btn btn-sm btn-outline btn-primary">
+                <i class="ti ti-plus"></i>Add option
+            </button>
+
+            <input type="hidden" name="options" :value="serialize()">
+        </div>
+    </section>
+
+    <section class="p-6 space-y-4">
+        {% call section_header('settings', 'Settings', 'secondary') %}Behaviour and policies.{% endcall %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-base-300 p-3 hover:bg-base-200/40 transition-colors"
+                   :class="{
+                       'opacity-60 cursor-not-allowed hover:bg-transparent': visibility === 'PUBLIC',
+                       'bg-base-200/40': isMandatory && visibility !== 'PUBLIC',
+                   }">
+                <input type="checkbox" name="is_mandatory" value="true"
+                       x-model="isMandatory"
+                       :disabled="visibility === 'PUBLIC'"
+                       class="checkbox checkbox-sm mt-0.5">
+                <div>
+                    <div class="font-medium flex items-center gap-1.5">
+                        <i class="ti ti-asterisk text-warning text-sm"></i>
+                        Mandatory poll
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        <span x-show="visibility !== 'PUBLIC'">
+                            Everyone in the audience must respond. Requires at least one audience member when activated.
+                        </span>
+                        <span x-show="visibility === 'PUBLIC'">
+                            Not available for public polls — there is no defined audience to require.
+                        </span>
+                    </div>
+                </div>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-base-300 p-3 hover:bg-base-200/40 transition-colors"
+                   :class="{ 'bg-base-200/40': customOptions }">
+                <input type="checkbox" name="allow_custom_options" value="true"
+                       x-model="customOptions"
+                       class="checkbox checkbox-sm mt-0.5">
+                <div>
+                    <div class="font-medium flex items-center gap-1.5">
+                        <i class="ti ti-message-plus text-info text-sm"></i>
+                        Allow custom options
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        Voters can suggest additional options during the poll. Other voters can then react to them.
+                    </div>
+                </div>
+            </label>
+
+            <div class="rounded-lg border border-base-300 hover:bg-base-200/40 transition-colors md:col-span-2"
+                 :class="{ 'bg-base-200/40': allowGuests }">
+                <label class="flex items-start gap-3 cursor-pointer p-3">
+                    <input type="checkbox" name="allow_guests" value="true"
+                           x-model="allowGuests"
+                           class="checkbox checkbox-sm mt-0.5">
+                    <div>
+                        <div class="font-medium flex items-center gap-1.5">
+                            <i class="ti ti-users-plus text-info text-sm"></i>
+                            Allow guests
+                        </div>
+                        <div class="text-xs text-base-content/60 mt-0.5">
+                            Voters can bring guests. Guests are added to the count for slots they accept (Yes).
+                        </div>
+                    </div>
+                </label>
+
+                <div x-show="allowGuests" x-cloak
+                     class="px-3 pb-3 pt-1 border-t border-base-200">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">
+                            <i class="ti ti-users opacity-60"></i>Maximum guests per voter
+                        </legend>
+                        <div class="flex gap-2">
+                            <input type="number" name="max_guests"
+                                   min="1" max="9"
+                                   x-model="maxGuests"
+                                   placeholder="No limit"
+                                   class="input input-sm w-32">
+                            <button type="button" x-show="maxGuests !== '' && maxGuests !== null" x-cloak
+                                    @click="maxGuests = ''"
+                                    class="btn btn-ghost btn-sm btn-square text-base-content/40 hover:text-error"
+                                    title="Clear">
+                                <i class="ti ti-x"></i>
+                            </button>
+                        </div>
+                        <p class="text-xs text-base-content/60 mt-1.5">
+                            Leave empty for no limit. Allowed range: 1–9.
+                        </p>
+                    </fieldset>
+                </div>
+            </div>
+
+            <div class="rounded-lg border border-base-300 hover:bg-base-200/40 transition-colors md:col-span-2"
+                 :class="{ 'bg-base-200/40': allowEdit }">
+                <label class="flex items-start gap-3 cursor-pointer p-3">
+                    <input type="checkbox" name="allow_edit_responses" value="true"
+                           x-model="allowEdit"
+                           class="checkbox checkbox-sm mt-0.5">
+                    <div>
+                        <div class="font-medium flex items-center gap-1.5">
+                            <i class="ti ti-edit text-info text-sm"></i>
+                            Allow editing responses
+                        </div>
+                        <div class="text-xs text-base-content/60 mt-0.5">
+                            Voters can revise their response after submitting.
+                        </div>
+                    </div>
+                </label>
+
+                <div x-show="allowEdit" x-cloak
+                     class="px-3 pb-3 pt-1 border-t border-base-200">
+                    <fieldset class="fieldset">
+                        <legend class="fieldset-legend">
+                            <i class="ti ti-clock-edit opacity-60"></i>Editable until
+                        </legend>
+                        <div x-data='dateHourPicker({{ form_data.get("edit_responses_until", "") | tojson }})' class="flex gap-2">
+                            <input type="date" x-model="date" class="input input-sm flex-1 max-w-xs">
+                            <select x-model="hour" class="select select-sm w-24">
+                                <option value="">—</option>
+                                {% for h in range(24) %}
+                                <option value="{{ '%02d' % h }}">{{ '%02d' % h }}:00</option>
+                                {% endfor %}
+                            </select>
+                            <button type="button" x-show="date || hour" x-cloak @click="clear()"
+                                    class="btn btn-ghost btn-sm btn-square text-base-content/40 hover:text-error"
+                                    title="Clear">
+                                <i class="ti ti-x"></i>
+                            </button>
+                            <input type="hidden" name="edit_responses_until" :value="combined()">
+                        </div>
+                        <p class="text-xs text-base-content/60 mt-1.5">
+                            Leave empty to allow edits until the poll closes.
+                        </p>
+                    </fieldset>
+                </div>
+            </div>
+
+            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-base-300 p-3 hover:bg-base-200/40 transition-colors md:col-span-2"
+                   :class="{ 'bg-base-200/40': autoDelete }">
+                <input type="checkbox" name="auto_delete" value="true"
+                       x-model="autoDelete"
+                       class="checkbox checkbox-sm mt-0.5">
+                <div>
+                    <div class="font-medium flex items-center gap-1.5">
+                        <i class="ti ti-trash text-error text-sm"></i>
+                        Auto-delete after closing
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        Poll and all responses are permanently removed {{ retention_days }} days after the status is set to CLOSED.
+                    </div>
+                </div>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-base-300 p-3 hover:bg-base-200/40 transition-colors"
+                   :class="{ 'bg-base-200/40': notifyOwnerOnResponse }">
+                <input type="checkbox" name="notify_owner_on_response" value="true"
+                       x-model="notifyOwnerOnResponse"
+                       class="checkbox checkbox-sm mt-0.5">
+                <div>
+                    <div class="font-medium flex items-center gap-1.5">
+                        <i class="ti ti-mail-forward text-info text-sm"></i>
+                        Email me on each response
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        You receive an email every time someone submits or updates a response.
+                    </div>
+                </div>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-base-300 p-3 hover:bg-base-200/40 transition-colors"
+                   :class="{ 'bg-base-200/40': notifyAudienceOnClose }">
+                <input type="checkbox" name="notify_audience_on_close" value="true"
+                       x-model="notifyAudienceOnClose"
+                       class="checkbox checkbox-sm mt-0.5">
+                <div>
+                    <div class="font-medium flex items-center gap-1.5">
+                        <i class="ti ti-mail-check text-info text-sm"></i>
+                        Notify audience when poll closes
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        Audience members receive an email with the results link once the poll moves to CLOSED.
+                    </div>
+                </div>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-base-300 p-3 hover:bg-base-200/40 transition-colors"
+                   :class="{ 'bg-base-200/40': anonymousVotes }">
+                <input type="checkbox" name="anonymous_votes" value="true"
+                       x-model="anonymousVotes"
+                       class="checkbox checkbox-sm mt-0.5">
+                <div>
+                    <div class="font-medium flex items-center gap-1.5">
+                        <i class="ti ti-user-off text-info text-sm"></i>
+                        Anonymous responses
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        Voter names and comments are hidden from everyone. Tallies are still shown.
+                    </div>
+                </div>
+            </label>
+
+            <label class="flex items-start gap-3 cursor-pointer rounded-lg border border-base-300 p-3 hover:bg-base-200/40 transition-colors"
+                   :class="{ 'bg-base-200/40': hideResultsUntilClose }">
+                <input type="checkbox" name="hide_results_until_close" value="true"
+                       x-model="hideResultsUntilClose"
+                       class="checkbox checkbox-sm mt-0.5">
+                <div>
+                    <div class="font-medium flex items-center gap-1.5">
+                        <i class="ti ti-eye-off text-info text-sm"></i>
+                        Hide results until close
+                    </div>
+                    <div class="text-xs text-base-content/60 mt-0.5">
+                        Voters see no tallies while the poll is open. Results become visible once it closes.
+                    </div>
+                </div>
+            </label>
+        </div>
+    </section>
+
+    <div class="flex items-center justify-between p-6 bg-base-200/40 rounded-b-box">
+        <div>
+            {% if not is_new %}
+            <button type="submit"
+                    form="poll-delete-form"
+                    class="btn btn-ghost btn-sm text-error">
+                <i class="ti ti-trash"></i>Delete
+            </button>
+            {% endif %}
+        </div>
+        <div class="flex gap-2">
+            <a href="{{ url_for('polls.my') }}" class="btn btn-ghost">Cancel</a>
+            <button type="submit" class="btn btn-primary">
+                <i class="ti ti-device-floppy"></i>Save
+            </button>
+        </div>
+    </div>
+</form>
+
+{% if not is_new %}
+<form id="poll-delete-form"
+      method="post"
+      action="{{ url_for('polls.delete', poll_id=poll.id) }}"
+      data-confirm="Delete this poll?">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+</form>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ static_url('js/polls-edit.js') }}"></script>
+{% endblock %}

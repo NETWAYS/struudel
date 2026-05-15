@@ -1,0 +1,18 @@
+{% extends "base.txt" %}
+{% block body %}
+A new response was submitted on your poll:
+
+  {{ poll.title }}
+
+{% if anonymous %}
+Someone has responded.
+{% else %}
+{{ voter_name }} has responded.
+{% endif %}
+Total responses so far: {{ response_count }}.
+
+View results:
+  {{ poll_url }}
+
+You receive this because "Notify owner on new response" is enabled on this poll.
+{% endblock %}

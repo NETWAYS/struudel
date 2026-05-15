@@ -1,0 +1,84 @@
+{#
+  Reusable form-page primitives shared across edit.html, audience.html, …
+
+  Visual tokens used across the polls form pages:
+  - text-base-content/55 — subtitles / short helper text
+  - text-base-content/60 — body description / multi-line hints
+  - text-base-content/40 — disabled / very-muted decoration
+  - hover:bg-base-200/40 — interactive surface hover
+  - bg-base-200/40       — passive surface tint (active-state cards, inline info boxes)
+  - bg-{color}/10 + text-{color} — section accent tile (color ∈ primary/info/success/secondary/warning/error)
+
+  The accent color combinations are dynamic (interpolated into class names),
+  so they must be safelisted in css/input.css via @source inline.
+
+  Section-color convention (use these consistently when introducing new pages):
+  - primary    — foundational / „about this thing" sections (Basics, Users, Overview)
+  - info       — configuration knobs / runtime behaviour, also share / link sections
+  - success    — content the user authors (Options, Posts, Items)
+  - secondary  — meta / read-only summaries (Settings, Results, Audit log)
+  - warning    — required-attention markers within a section (mandatory flag)
+  - error      — danger-zone sections AND destructive markers within a section
+
+  Use `error` sparingly: only an explicit „Danger zone" pattern (irreversible
+  actions on a stable resource) earns a whole-section accent tile.
+#}
+
+{#
+  section_header — accent tile + title + subtitle.
+
+  Usage:
+    {% call section_header('info-square-rounded', 'Basics') %}What this poll is about.{% endcall %}
+    {% call section_header('user', 'Users', 'primary') %}
+        <span x-text="users.length"></span> members
+    {% endcall %}
+
+  The body of the call block becomes the subtitle and may contain markup
+  (Alpine bindings, spans, etc).
+#}
+{% macro section_header(icon, title, color='primary') %}
+<header class="flex items-start gap-3">
+    <span class="flex items-center justify-center w-9 h-9 rounded-lg bg-{{ color }}/10 text-{{ color }} shrink-0">
+        <i class="ti ti-{{ icon }} text-lg"></i>
+    </span>
+    <div class="flex-1 min-w-0">
+        <h2 class="text-base font-semibold text-base-content leading-tight">{{ title }}</h2>
+        <p class="text-xs text-base-content/55 mt-0.5">{{ caller() }}</p>
+    </div>
+</header>
+{% endmacro %}
+
+{#
+  empty_state — dashed-border placeholder for empty lists.
+
+  Usage:
+    <div x-show="items.length === 0">
+        {{ empty_state('user-plus', 'No users invited yet', 'Search above to add someone.') }}
+    </div>
+#}
+{% macro empty_state(icon, title, subtitle='') %}
+<div class="rounded-lg border-2 border-dashed border-base-300 p-6 text-center text-sm text-base-content/60">
+    <i class="ti ti-{{ icon }} text-3xl mb-2 block opacity-40"></i>
+    <div>{{ title }}</div>
+    {% if subtitle %}<div class="text-xs text-base-content/55 mt-1">{{ subtitle }}</div>{% endif %}
+</div>
+{% endmacro %}
+
+{#
+  field_error — renders a Pydantic ValidationError message scoped to one field.
+  Usage: {{ field_error(errors, 'title') }}
+#}
+{% macro field_error(errors, field) %}
+    {% for err in errors %}
+        {% if err.loc and err.loc[0] == field %}
+            <p class="text-error text-xs mt-1">{{ err.msg }}</p>
+        {% endif %}
+    {% endfor %}
+{% endmacro %}
+
+{#
+  legend_icon — small leading icon for fieldset-legend text.
+  Usage:
+    <legend class="fieldset-legend">{{ legend_icon('pulse') }}Status</legend>
+#}
+{% macro legend_icon(name) %}<i class="ti ti-{{ name }} opacity-60"></i>{% endmacro %}

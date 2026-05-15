@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+{% from "_components.html" import empty_state %}
+
+{% block page_title %}Dashboard{% endblock %}
+
+{% macro section_card(icon, color, title, count, see_all_endpoint) %}
+<section class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body p-5">
+        <header class="flex items-center justify-between gap-3 mb-3">
+            <div class="flex items-center gap-2">
+                <span class="flex items-center justify-center w-9 h-9 rounded-lg bg-{{ color }}/10 text-{{ color }} shrink-0">
+                    <i class="ti ti-{{ icon }} text-lg"></i>
+                </span>
+                <h2 class="text-base font-semibold leading-tight">
+                    {{ title }}
+                    {% if count %}<span class="text-base-content/50 font-normal">({{ count }})</span>{% endif %}
+                </h2>
+            </div>
+            {% if see_all_endpoint %}
+            <a href="{{ url_for(see_all_endpoint) }}" class="text-xs link link-hover text-base-content/60 flex items-center gap-1">
+                See all<i class="ti ti-arrow-right text-sm"></i>
+            </a>
+            {% endif %}
+        </header>
+        {{ caller() }}
+    </div>
+</section>
+{% endmacro %}
+
+{% macro _meta_dot() %}<span class="text-base-content/25" aria-hidden="true">·</span>{% endmacro %}
+
+{% macro meta_line(poll, show_creator=False) %}
+    {% set has_dates = poll.starts_at or poll.ends_at %}
+    {% if show_creator or has_dates %}
+    <div class="text-xs text-base-content/55 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+        {% if show_creator %}
+        <span class="inline-flex items-center gap-1.5 min-w-0">
+            <i class="ti ti-user opacity-60 shrink-0"></i>
+            <span class="truncate">{{ poll.created_by.name or poll.created_by.preferred_username }}</span>
+        </span>
+        {% endif %}
+        {% if show_creator and has_dates %}{{ _meta_dot() }}{% endif %}
+        {% if poll.starts_at and poll.ends_at %}
+        <span class="inline-flex items-center gap-1.5">
+            <i class="ti ti-calendar-event opacity-60"></i>
+            <span>{{ poll.starts_at | localtime }} <span class="opacity-60">→</span> {{ poll.ends_at | localtime }}</span>
+        </span>
+        {% elif poll.ends_at %}
+        <span class="inline-flex items-center gap-1.5">
+            <i class="ti ti-clock-stop opacity-60"></i>
+            Ends {{ poll.ends_at | localtime }}
+        </span>
+        {% elif poll.starts_at %}
+        <span class="inline-flex items-center gap-1.5">
+            <i class="ti ti-clock-play opacity-60"></i>
+            Starts {{ poll.starts_at | localtime }}
+        </span>
+        {% endif %}
+    </div>
+    {% endif %}
+{% endmacro %}
+
+{# Inline leading marker for special polls. Keeps the title row to a single
+   line and sets a clear visual flag without competing for attention. #}
+{% macro mandatory_marker() %}
+    <span class="text-warning shrink-0" title="Mandatory poll" aria-label="Mandatory poll">
+        <i class="ti ti-alert-triangle"></i>
+    </span>
+{% endmacro %}
+
+{% macro public_marker() %}
+    <span class="text-info shrink-0" title="Public poll" aria-label="Public poll">
+        <i class="ti ti-world"></i>
+    </span>
+{% endmacro %}
+
+{% block content %}
+<div class="mb-6 flex items-center justify-between gap-3 flex-wrap">
+    <h1 class="text-2xl font-bold flex items-center gap-2">
+        <i class="ti ti-layout-dashboard text-primary"></i>Dashboard
+    </h1>
+    <a href="{{ url_for('polls.new') }}" class="btn btn-primary btn-sm">
+        <i class="ti ti-plus"></i>New poll
+    </a>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+    {# 1. My active polls #}
+    {% call section_card('user-star', 'primary', 'My active polls', data.my_active|length, 'polls.my') %}
+        {% if data.my_active %}
+        <ul class="divide-y divide-base-200">
+            {% for item in data.my_active %}
+            {% set p = item.poll %}
+            <li class="py-3 first:pt-0 last:pb-0">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                        <a href="{{ url_for('polls.detail', poll_id=p.id) }}"
+                           class="link link-hover font-medium flex items-center gap-1.5">
+                            {% if p.is_mandatory %}{{ mandatory_marker() }}{% endif %}
+                            <span class="truncate">{{ p.title }}</span>
+                        </a>
+                        {{ meta_line(p, show_creator=False) }}
+                    </div>
+                </div>
+
+                {% if p.is_mandatory and item.audience_count %}
+                {% set pct = (item.response_count * 100 / item.audience_count) | int %}
+                {% set prog_cls = 'progress-success' if pct >= 100 else ('progress-warning' if pct < 50 else 'progress-primary') %}
+                <div class="mt-2 flex items-center gap-2">
+                    <progress class="progress {{ prog_cls }} flex-1 h-2"
+                              value="{{ item.response_count }}" max="{{ item.audience_count }}"></progress>
+                    <span class="text-xs text-base-content/60 whitespace-nowrap">
+                        {{ item.response_count }} / {{ item.audience_count }} responded
+                    </span>
+                </div>
+                {% else %}
+                <div class="mt-1 text-xs text-base-content/55">
+                    {{ item.response_count }} response{{ '' if item.response_count == 1 else 's' }}
+                </div>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+            {{ empty_state('mood-empty', 'No active polls', 'Create one with the New poll button above.') }}
+        {% endif %}
+    {% endcall %}
+
+    {# 2. Action required #}
+    {% call section_card('checkup-list', 'warning', 'Action required', data.action_required|length, 'polls.participate') %}
+        {% if data.action_required %}
+        <ul class="divide-y divide-base-200">
+            {% for p in data.action_required %}
+            <li class="py-3 first:pt-0 last:pb-0">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                        <a href="{{ url_for('polls.vote', poll_id=p.id) }}"
+                           class="link link-hover font-medium flex items-center gap-1.5">
+                            {% if p.is_mandatory %}{{ mandatory_marker() }}{% endif %}
+                            <span class="truncate">{{ p.title }}</span>
+                        </a>
+                        {{ meta_line(p, show_creator=True) }}
+                    </div>
+                    <a href="{{ url_for('polls.vote', poll_id=p.id) }}" class="btn btn-primary btn-xs shrink-0">
+                        Vote<i class="ti ti-arrow-right"></i>
+                    </a>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+            {{ empty_state('check', 'Nothing to do', 'You are caught up on every poll you were invited to.') }}
+        {% endif %}
+    {% endcall %}
+
+    {# 3. Already voted #}
+    {% call section_card('checks', 'success', 'Already voted', data.already_voted|length, 'polls.participate') %}
+        {% if data.already_voted %}
+        <ul class="divide-y divide-base-200">
+            {% for entry in data.already_voted %}
+            {% set p = entry.poll %}
+            <li class="py-3 first:pt-0 last:pb-0 flex items-start justify-between gap-3">
+                <div class="min-w-0 flex-1">
+                    <a href="{{ url_for('polls.vote', poll_id=p.id) }}"
+                       class="link link-hover font-medium flex items-center gap-1.5">
+                        {% if p.is_mandatory %}{{ mandatory_marker() }}{% endif %}
+                        <span class="truncate">{{ p.title }}</span>
+                    </a>
+                    <div class="text-xs text-base-content/55 flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
+                        <span class="inline-flex items-center gap-1.5 min-w-0">
+                            <i class="ti ti-user opacity-60 shrink-0"></i>
+                            <span class="truncate">{{ p.created_by.name or p.created_by.preferred_username }}</span>
+                        </span>
+                        {{ _meta_dot() }}
+                        <span class="inline-flex items-center gap-1.5">
+                            <i class="ti ti-clock-check opacity-60"></i>
+                            Voted on {{ entry.submitted_at | localtime }}
+                        </span>
+                    </div>
+                </div>
+                <span class="text-success text-sm flex items-center gap-1 shrink-0" title="You voted on this poll">
+                    <i class="ti ti-circle-check"></i>
+                </span>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+            {{ empty_state('inbox', 'No responses yet', 'Polls you have voted on will show up here.') }}
+        {% endif %}
+    {% endcall %}
+
+    {# 4. Public polls #}
+    {% call section_card('world', 'info', 'Public polls', data.public_open|length, 'polls.public') %}
+        {% if data.public_open %}
+        <ul class="divide-y divide-base-200">
+            {% for p in data.public_open %}
+            <li class="py-3 first:pt-0 last:pb-0">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0 flex-1">
+                        <a href="{{ url_for('polls.vote', poll_id=p.id) }}"
+                           class="link link-hover font-medium flex items-center gap-1.5">
+                            {{ public_marker() }}
+                            <span class="truncate">{{ p.title }}</span>
+                        </a>
+                        {{ meta_line(p, show_creator=True) }}
+                    </div>
+                    <a href="{{ url_for('polls.vote', poll_id=p.id) }}" class="btn btn-ghost btn-xs shrink-0">
+                        Vote<i class="ti ti-arrow-right"></i>
+                    </a>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+            {{ empty_state('world-off', 'No open public polls', 'Public polls open to everyone will show up here.') }}
+        {% endif %}
+    {% endcall %}
+
+</div>
+{% endblock %}

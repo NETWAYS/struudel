@@ -1,0 +1,62 @@
+{#
+  Search results partial rendered by HTMX.
+  Parameters:
+    kind    - 'user' | 'group'
+    query   - the current search term
+    results - list[User] | list[Group]
+
+  Item data is passed through data-* attributes to avoid quoting issues
+  with the Alpine @click expression. Alpine reads them via $event.currentTarget.dataset.
+#}
+{% if results %}
+<ul class="divide-y divide-base-300">
+    {% for item in results %}
+    {% if kind == 'user' %}
+    <li>
+        <button type="button"
+                data-id="{{ item.id }}"
+                data-label="{{ item.name or item.preferred_username }}"
+                data-sublabel="{{ item.email }}"
+                @click.prevent="addUser({
+                    id: Number($event.currentTarget.dataset.id),
+                    label: $event.currentTarget.dataset.label,
+                    sublabel: $event.currentTarget.dataset.sublabel,
+                })"
+                class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-base-200 transition-colors">
+            <span class="shrink-0 w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center">
+                <i class="ti ti-user"></i>
+            </span>
+            <span class="flex-1 min-w-0">
+                <span class="block truncate text-sm font-medium">{{ item.name or item.preferred_username }}</span>
+                <span class="block truncate text-xs opacity-60">{{ item.email }}</span>
+            </span>
+            <i class="ti ti-plus text-base-content/40 shrink-0"></i>
+        </button>
+    </li>
+    {% else %}
+    <li>
+        <button type="button"
+                data-id="{{ item.id }}"
+                data-label="{{ item.name }}"
+                @click.prevent="addGroup({
+                    id: Number($event.currentTarget.dataset.id),
+                    label: $event.currentTarget.dataset.label,
+                    sublabel: '',
+                })"
+                class="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-base-200 transition-colors">
+            <span class="shrink-0 w-8 h-8 rounded-full bg-secondary/10 text-secondary flex items-center justify-center">
+                <i class="ti ti-users-group"></i>
+            </span>
+            <span class="flex-1 min-w-0 truncate text-sm font-medium">{{ item.name }}</span>
+            <i class="ti ti-plus text-base-content/40 shrink-0"></i>
+        </button>
+    </li>
+    {% endif %}
+    {% endfor %}
+</ul>
+{% elif query %}
+<div class="flex items-center gap-2 px-3 py-4 text-sm text-base-content/50">
+    <i class="ti ti-mood-empty"></i>
+    <span>No results for &ldquo;{{ query }}&rdquo;</span>
+</div>
+{% endif %}

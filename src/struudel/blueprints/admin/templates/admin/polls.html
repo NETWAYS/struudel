@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+
+{% block page_title %}Polls · Admin{% endblock %}
+
+{% block content %}
+<section class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body p-5 gap-4">
+        <header class="flex items-center gap-3">
+            <span class="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary shrink-0">
+                <i class="ti ti-list-check text-lg"></i>
+            </span>
+            <div class="flex-1 min-w-0">
+                <h1 class="text-base font-semibold leading-tight">Polls</h1>
+                <p class="text-xs text-base-content/55 mt-0.5">Search across all polls in the system, filter by status, and delete unwanted polls.</p>
+            </div>
+        </header>
+
+        <div class="flex flex-wrap items-center gap-3">
+            <label class="input input-sm flex items-center gap-2 grow max-w-sm"
+                   x-data="{ hasValue: {{ ((title_q | length) > 0) | tojson }} }">
+                <i class="ti ti-search opacity-60"></i>
+                <input type="text"
+                       placeholder="Title…"
+                       autocomplete="off"
+                       class="grow outline-none"
+                       id="polls-title-q"
+                       name="title"
+                       value="{{ title_q }}"
+                       @input="hasValue = $event.target.value.length > 0"
+                       hx-get="{{ url_for('admin.polls') }}"
+                       hx-trigger="input changed delay:250ms"
+                       hx-target="#polls-table"
+                       hx-replace-url="true"
+                       hx-include="#polls-creator-q, #polls-status-state">
+                <button type="button"
+                        x-show="hasValue"
+                        x-cloak
+                        @click="(() => {
+                            const i = document.getElementById('polls-title-q');
+                            i.value = '';
+                            hasValue = false;
+                            i.dispatchEvent(new Event('input', { bubbles: true }));
+                            i.focus();
+                        })()"
+                        class="text-base-content/50 hover:text-base-content"
+                        title="Clear title search"
+                        aria-label="Clear title search">
+                    <i class="ti ti-x"></i>
+                </button>
+            </label>
+
+            <label class="input input-sm flex items-center gap-2 grow max-w-sm"
+                   x-data="{ hasValue: {{ ((creator_q | length) > 0) | tojson }} }">
+                <i class="ti ti-user opacity-60"></i>
+                <input type="text"
+                       placeholder="Creator (username or name)…"
+                       autocomplete="off"
+                       class="grow outline-none"
+                       id="polls-creator-q"
+                       name="creator"
+                       value="{{ creator_q }}"
+                       @input="hasValue = $event.target.value.length > 0"
+                       hx-get="{{ url_for('admin.polls') }}"
+                       hx-trigger="input changed delay:250ms"
+                       hx-target="#polls-table"
+                       hx-replace-url="true"
+                       hx-include="#polls-title-q, #polls-status-state">
+                <button type="button"
+                        x-show="hasValue"
+                        x-cloak
+                        @click="(() => {
+                            const i = document.getElementById('polls-creator-q');
+                            i.value = '';
+                            hasValue = false;
+                            i.dispatchEvent(new Event('input', { bubbles: true }));
+                            i.focus();
+                        })()"
+                        class="text-base-content/50 hover:text-base-content"
+                        title="Clear creator search"
+                        aria-label="Clear creator search">
+                    <i class="ti ti-x"></i>
+                </button>
+            </label>
+        </div>
+
+        <div id="polls-table">
+            {% include "admin/_polls_table.html" %}
+        </div>
+    </div>
+</section>
+{% endblock %}

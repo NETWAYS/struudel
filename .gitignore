@@ -1,0 +1,17 @@
+# hidden files — ignore all, allow specific ones
+.*
+!.gitignore
+!.dockerignore
+!.env.example
+!.editorconfig
+
+scripts/
+!scripts/.gitkeep
+
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+dist/
+build/
+*.egg-info/

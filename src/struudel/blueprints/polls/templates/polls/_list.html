@@ -1,0 +1,94 @@
+{#
+  Renders a list of polls as a table inside a card.
+  Parameters:
+    polls      - list[Poll]
+    show_owner - bool: show owner actions (edit/delete)
+#}
+{% from "_components.html" import empty_state %}
+
+{% macro poll_status_badge(status) %}
+    {% set cls = {
+        'DRAFT': 'badge-ghost',
+        'ACTIVE': 'badge-success',
+        'CLOSED': 'badge-neutral',
+        'TEMPLATE': 'badge-info',
+    }.get(status.value, 'badge-ghost') %}
+    <span class="badge {{ cls }}">{{ status.value | title }}</span>
+{% endmacro %}
+
+{% macro poll_visibility_badge(visibility) %}
+    {% if visibility.value == 'PUBLIC' %}
+        <span class="badge badge-outline badge-primary gap-1">
+            <i class="ti ti-world text-sm"></i>Public
+        </span>
+    {% else %}
+        <span class="badge badge-outline gap-1">
+            <i class="ti ti-lock text-sm"></i>Private
+        </span>
+    {% endif %}
+{% endmacro %}
+
+{% if polls %}
+<div class="overflow-x-auto bg-base-100 rounded-box border border-base-300 shadow-sm">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Visibility</th>
+                {% if not show_owner %}<th>Created by</th>{% endif %}
+                <th>Created at</th>
+                {% if show_owner %}<th class="w-32 text-end">Actions</th>{% endif %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for poll in polls %}
+            <tr class="hover:bg-base-200/40 transition-colors">
+                <td>
+                    <a href="{{ url_for('polls.detail', poll_id=poll.id) }}" class="link link-hover font-medium">
+                        {{ poll.title }}
+                    </a>
+                    {% if poll.description_short %}
+                    <div class="text-xs text-base-content/60 mt-0.5">{{ poll.description_short }}</div>
+                    {% endif %}
+                </td>
+                <td>{{ poll_status_badge(poll.status) }}</td>
+                <td>{{ poll_visibility_badge(poll.visibility) }}</td>
+                {% if not show_owner %}
+                <td class="text-sm">
+                    <span class="flex items-center gap-1.5 text-base-content/80">
+                        <i class="ti ti-user text-base-content/50"></i>
+                        {{ poll.created_by.name or poll.created_by.preferred_username }}
+                    </span>
+                </td>
+                {% endif %}
+                <td class="text-sm text-base-content/60">
+                    {{ poll.created_at | localtime }}
+                </td>
+                {% if show_owner %}
+                <td>
+                    <div class="flex gap-1 justify-end">
+                        <a href="{{ url_for('polls.edit', poll_id=poll.id) }}"
+                           class="btn btn-ghost btn-xs" title="Edit">
+                            <i class="ti ti-edit"></i>
+                        </a>
+                        <form method="post"
+                              action="{{ url_for('polls.delete', poll_id=poll.id) }}"
+                              data-confirm="Delete this poll?"
+                              class="inline">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <button type="submit" class="btn btn-ghost btn-xs text-base-content/40 hover:text-error" title="Delete">
+                                <i class="ti ti-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </td>
+                {% endif %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+{{ empty_state('mood-empty', 'No polls here yet', empty_hint or 'Create one with the New poll button.') }}
+{% endif %}

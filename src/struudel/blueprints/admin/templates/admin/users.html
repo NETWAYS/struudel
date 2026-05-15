@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block page_title %}Users · Admin{% endblock %}
+
+{% block content %}
+<section class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body p-5 gap-4">
+        <header class="flex items-center gap-3">
+            <span class="flex items-center justify-center w-9 h-9 rounded-lg bg-primary/10 text-primary shrink-0">
+                <i class="ti ti-users text-lg"></i>
+            </span>
+            <div class="flex-1 min-w-0">
+                <h1 class="text-base font-semibold leading-tight">Users</h1>
+                <p class="text-xs text-base-content/55 mt-0.5">Grant or revoke superuser, activate or deactivate, delete users and their polls.</p>
+            </div>
+        </header>
+
+        <label class="input input-sm flex items-center gap-2 w-full max-w-sm"
+               x-data="{ hasValue: {{ ((q | length) > 0) | tojson }} }">
+            <i class="ti ti-search opacity-60"></i>
+            <input type="text"
+                   placeholder="Search by username or name…"
+                   autocomplete="off"
+                   class="grow outline-none"
+                   id="users-q"
+                   name="q"
+                   value="{{ q }}"
+                   @input="hasValue = $event.target.value.length > 0"
+                   hx-get="{{ url_for('admin.users') }}"
+                   hx-trigger="input changed delay:250ms"
+                   hx-target="#users-table"
+                   hx-replace-url="true"
+                   hx-include="#users-filter-state">
+            <button type="button"
+                    x-show="hasValue"
+                    x-cloak
+                    @click="(() => {
+                        const i = document.getElementById('users-q');
+                        i.value = '';
+                        hasValue = false;
+                        i.dispatchEvent(new Event('input', { bubbles: true }));
+                        i.focus();
+                    })()"
+                    class="text-base-content/50 hover:text-base-content"
+                    title="Clear search"
+                    aria-label="Clear search">
+                <i class="ti ti-x"></i>
+            </button>
+        </label>
+
+        <div id="users-table">
+            {% include "admin/_users_table.html" %}
+        </div>
+    </div>
+</section>
+{% endblock %}
