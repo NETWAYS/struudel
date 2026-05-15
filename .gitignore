@@ -4,6 +4,7 @@
 !.dockerignore
 !.env.example
 !.editorconfig
+!.github/
 
 scripts/
 !scripts/.gitkeep
