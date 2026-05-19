@@ -34,6 +34,8 @@ class Settings(BaseSettings):
 
     scim_token: str = ""
 
+    superuser_group: str = ""
+
     poll_retention_days: int = 30
 
     app_timezone: str = "Europe/Berlin"

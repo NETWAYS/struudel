@@ -34,12 +34,15 @@ def create_app() -> Flask:
     init_csrf(app)
 
     oauth.init_app(app)
+    scopes = settings.oidc_scopes
+    if settings.superuser_group and "groups" not in scopes.split():
+        scopes = f"{scopes} groups"
     oauth.register(
         name="oidc",
         server_metadata_url=settings.oidc_discovery_url,
         client_id=settings.oidc_client_id,
         client_secret=settings.oidc_client_secret,
-        client_kwargs={"scope": settings.oidc_scopes},
+        client_kwargs={"scope": scopes},
     )
 
     register_blueprints(app)

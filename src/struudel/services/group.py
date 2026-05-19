@@ -5,6 +5,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, selectinload
 
+from struudel.config import settings
 from struudel.models.associations import user_group
 from struudel.models.group import Group
 from struudel.models.user import User
@@ -205,6 +206,32 @@ def _apply_scalars(group: Group, *, display_name: str | None, external_id: str |
         group.canonical_name = display_name.lower()
     if external_id is not None:
         group.external_id = external_id
+
+
+def sync_superusers_from_group(db: Session) -> None:
+    """Re-derive User.is_superuser from membership in the SUPERUSER_GROUP.
+    Members of that group are superusers; everyone else is not. No-op when
+    the setting is empty (manual CLI grants remain authoritative)."""
+    target = settings.superuser_group.strip().lower()
+    if not target:
+        return
+    group_id = db.scalar(sa.select(Group.id).where(Group.canonical_name == target))
+    if group_id is None:
+        db.execute(sa.update(User).where(User.is_superuser.is_(True)).values(is_superuser=False))
+        db.commit()
+        return
+    member_ids = sa.select(user_group.c.user_id).where(user_group.c.group_id == group_id)
+    db.execute(
+        sa.update(User)
+        .where(User.id.in_(member_ids), User.is_superuser.is_(False))
+        .values(is_superuser=True)
+    )
+    db.execute(
+        sa.update(User)
+        .where(~User.id.in_(member_ids), User.is_superuser.is_(True))
+        .values(is_superuser=False)
+    )
+    db.commit()
 
 
 def _replace_members(db: Session, *, group_id: int, user_ids: list[int]) -> None:

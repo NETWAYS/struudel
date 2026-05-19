@@ -12,6 +12,7 @@ from PIL import Image, UnidentifiedImageError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
+from struudel.config import settings
 from struudel.models.poll import Poll
 from struudel.models.user import User
 
@@ -231,6 +232,25 @@ def set_superuser(db: Session, *, user_id: int, value: bool) -> User | None:
     db.refresh(user)
     log.info("set_superuser id=%s value=%s", user_id, value)
     return user
+
+
+def sync_superuser_from_oidc_groups(
+    db: Session, *, user_id: int, group_names: list[str] | None
+) -> None:
+    """If SUPERUSER_GROUP is configured, set the user's is_superuser flag based on
+    whether the configured group name appears in the OIDC `groups` claim.
+    No-op when the setting is empty."""
+    target = settings.superuser_group.strip().lower()
+    if not target:
+        return
+    names = group_names or []
+    value = any(isinstance(g, str) and g.strip().lower() == target for g in names)
+    user = db.get(User, user_id)
+    if user is None or user.is_superuser == value:
+        return
+    user.is_superuser = value
+    db.commit()
+    log.info("auto-superuser via OIDC: user=%s value=%s", user_id, value)
 
 
 def list_superusers(db: Session) -> list[User]:
