@@ -31,7 +31,18 @@ def _handle_scim_error(e: ScimError) -> Response:
 
 
 @bp.errorhandler(IntegrityError)
-def _handle_integrity_error(_e: IntegrityError) -> Response:
+def _handle_integrity_error(e: IntegrityError) -> Response:
+    diag = getattr(getattr(e, "orig", None), "diag", None)
+    constraint = getattr(diag, "constraint_name", None)
+    detail = getattr(diag, "message_detail", None)
+    log.warning(
+        "SCIM 409 %s %s constraint=%r detail=%r body=%r",
+        request.method,
+        request.path,
+        constraint,
+        detail,
+        request.get_data(as_text=True)[:2000],
+    )
     return scim_error(409, "Conflict on unique attribute", "uniqueness")
 
 
@@ -106,19 +117,41 @@ def users_create() -> Response:
     external_id = fields["external_id"] or fields["preferred_username"]
 
     with SessionLocal() as db:
-        user = user_service.create_user(
-            db,
-            external_id=external_id,
-            preferred_username=fields["preferred_username"],
-            name=fields["name"],
-            given_name=fields["given_name"],
-            family_name=fields["family_name"],
-            email=fields["email"],
-            active=fields["active"],
-        )
+        existing = user_service.get_user_by_external_id(db, external_id=external_id)
+        if existing is not None:
+            user = user_service.update_user(
+                db,
+                user_id=existing.id,
+                preferred_username=fields["preferred_username"],
+                name=fields["name"],
+                given_name=fields["given_name"],
+                family_name=fields["family_name"],
+                email=fields["email"],
+                active=fields["active"],
+                external_id=external_id,
+            )
+            assert user is not None
+            log.info(
+                "SCIM POST /Users adopted existing user id=%s external_id=%s",
+                user.id,
+                external_id,
+            )
+            status = 200
+        else:
+            user = user_service.create_user(
+                db,
+                external_id=external_id,
+                preferred_username=fields["preferred_username"],
+                name=fields["name"],
+                given_name=fields["given_name"],
+                family_name=fields["family_name"],
+                email=fields["email"],
+                active=fields["active"],
+            )
+            status = 201
         body = scim_service.user_to_scim(user)
 
-    response = scim_response(body, 201)
+    response = scim_response(body, status)
     response.headers["Location"] = body["meta"]["location"]
     return response
 
@@ -226,16 +259,38 @@ def groups_create() -> Response:
     fields = scim_service.parse_group_payload(payload)
 
     with SessionLocal() as db:
-        group = group_service.create_group(
-            db,
-            display_name=fields["display_name"],
-            external_id=fields["external_id"],
-            member_user_ids=fields["member_user_ids"],
+        existing = (
+            group_service.get_group_by_external_id(db, external_id=fields["external_id"])
+            if fields["external_id"]
+            else None
         )
+        if existing is not None:
+            group = group_service.update_group(
+                db,
+                group_id=existing.id,
+                display_name=fields["display_name"],
+                external_id=fields["external_id"],
+                member_user_ids=fields["member_user_ids"],
+            )
+            assert group is not None
+            log.info(
+                "SCIM POST /Groups adopted existing group id=%s external_id=%s",
+                group.id,
+                fields["external_id"],
+            )
+            status = 200
+        else:
+            group = group_service.create_group(
+                db,
+                display_name=fields["display_name"],
+                external_id=fields["external_id"],
+                member_user_ids=fields["member_user_ids"],
+            )
+            status = 201
         group_service.sync_superusers_from_group(db)
         body = scim_service.group_to_scim(group)
 
-    response = scim_response(body, 201)
+    response = scim_response(body, status)
     response.headers["Location"] = body["meta"]["location"]
     return response
 
