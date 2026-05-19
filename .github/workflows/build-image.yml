@@ -3,6 +3,8 @@ name: Build container image
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: read
@@ -33,7 +35,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=latest
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=ref,event=pr,prefix=pr-
 
       - name: Build and push
         uses: docker/build-push-action@v6
