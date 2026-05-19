@@ -232,6 +232,7 @@ def groups_create() -> Response:
             external_id=fields["external_id"],
             member_user_ids=fields["member_user_ids"],
         )
+        group_service.sync_superusers_from_group(db)
         body = scim_service.group_to_scim(group)
 
     response = scim_response(body, 201)
@@ -268,6 +269,7 @@ def group_replace(group_id: str) -> Response:
         )
         if group is None:
             return scim_error(404, "Group not found")
+        group_service.sync_superusers_from_group(db)
         body = scim_service.group_to_scim(group)
 
     return scim_response(body)
@@ -293,6 +295,7 @@ def group_patch(group_id: str) -> Response:
         )
         if group is None:
             return scim_error(404, "Group not found")
+        group_service.sync_superusers_from_group(db)
         body = scim_service.group_to_scim(group)
 
     return scim_response(body)
@@ -304,6 +307,7 @@ def group_delete(group_id: str) -> Response:
     gid = _parse_id(group_id)
     with SessionLocal() as db:
         removed = group_service.delete_group(db, group_id=gid)
-    if not removed:
-        return scim_error(404, "Group not found")
+        if not removed:
+            return scim_error(404, "Group not found")
+        group_service.sync_superusers_from_group(db)
     return Response(status=204, mimetype=SCIM_CONTENT_TYPE)

@@ -8,6 +8,7 @@ from struudel.database import SessionLocal
 from struudel.extensions import oauth
 from struudel.services.user import (
     get_user_by_external_id,
+    sync_superuser_from_oidc_groups,
     upsert_user,
     user_to_session_dict,
 )
@@ -84,6 +85,9 @@ def callback() -> Response | tuple[str, int]:
                 email=email,
                 profile=userinfo.get("profile"),
                 picture=userinfo.get("picture"),
+            )
+            sync_superuser_from_oidc_groups(
+                db, user_id=user.id, group_names=userinfo.get("groups")
             )
             session_user = user_to_session_dict(user)
             has_picture = bool(user.picture)
