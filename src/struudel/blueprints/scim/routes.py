@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from flask import request
@@ -13,9 +14,19 @@ from struudel.services import scim as scim_service
 from struudel.services import user as user_service
 from struudel.services.scim import SCIM_CONTENT_TYPE, ScimError
 
+log = logging.getLogger(__name__)
+
 
 @bp.errorhandler(ScimError)
 def _handle_scim_error(e: ScimError) -> Response:
+    if e.status == 400:
+        log.warning(
+            "SCIM 400 %s %s detail=%r body=%r",
+            request.method,
+            request.path,
+            e.detail,
+            request.get_data(as_text=True)[:2000],
+        )
     return scim_error(e.status, e.detail, e.scim_type)
 
 

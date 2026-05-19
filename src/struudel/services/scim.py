@@ -253,17 +253,26 @@ def group_patch_to_actions(ops: list[dict[str, Any]]) -> dict[str, Any]:
             actions["add_members"].extend(_parse_member_ids(value or []))
 
         elif op_name == "remove":
-            match = _REMOVE_MEMBER_PATH.match(path or "")
-            if not match:
+            path_str = path or ""
+            match = _REMOVE_MEMBER_PATH.match(path_str)
+            if match:
+                try:
+                    actions["remove_members"].append(int(match.group(1)))
+                except ValueError as e:
+                    raise ScimError(400, "member value must be numeric id", "invalidValue") from e
+            elif path_str.lower() == "members":
+                if value in (None, []):
+                    actions["replace_members"] = []
+                elif isinstance(value, list):
+                    actions["remove_members"].extend(_parse_member_ids(value))
+                else:
+                    raise ScimError(400, "remove members value must be list", "invalidValue")
+            else:
                 raise ScimError(
                     400,
-                    'remove only supported as members[value eq "<id>"]',
+                    'remove only supported on members (with or without value-eq filter)',
                     "invalidSyntax",
                 )
-            try:
-                actions["remove_members"].append(int(match.group(1)))
-            except ValueError as e:
-                raise ScimError(400, "member value must be numeric id", "invalidValue") from e
 
     return actions
 
