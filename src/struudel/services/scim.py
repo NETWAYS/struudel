@@ -184,9 +184,6 @@ def parse_group_payload(payload: dict[str, Any]) -> dict[str, Any]:
 def parse_patch_ops(payload: dict[str, Any]) -> list[dict[str, Any]]:
     if not isinstance(payload, dict):
         raise ScimError(400, "Request body must be a JSON object", "invalidSyntax")
-    schemas = payload.get("schemas") or []
-    if PATCH_OP_SCHEMA not in schemas:
-        raise ScimError(400, "Missing PatchOp schema", "invalidSyntax")
 
     ops = payload.get("Operations")
     if not isinstance(ops, list):
@@ -285,6 +282,8 @@ def _apply_group_replace(actions: dict[str, Any], path: str, value: Any) -> None
         actions["external_id"] = value
     elif key == "members":
         actions["replace_members"] = _parse_member_ids(value or [])
+    elif key in {"id", "schemas", "meta"}:
+        return
     else:
         raise ScimError(400, f"Unsupported path: {path!r}", "invalidPath")
 
