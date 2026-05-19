@@ -5,7 +5,7 @@ from flask_session import Session
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from struudel.blueprints import register_blueprints
-from struudel.cli import superuser_cli
+from struudel.cli import mail_cli, superuser_cli
 from struudel.config import settings
 from struudel.csrf import init_csrf
 from struudel.extensions import oauth, session_redis_client
@@ -54,5 +54,6 @@ def create_app() -> Flask:
     init_request_hooks(app)
 
     app.cli.add_command(superuser_cli)
+    app.cli.add_command(mail_cli)
 
     return app
