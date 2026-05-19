@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING, Any, NamedTuple
 
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session, selectinload
 
 from struudel.models.associations import user_group
@@ -214,24 +215,16 @@ def _replace_members(db: Session, *, group_id: int, user_ids: list[int]) -> None
 
 def _add_members(db: Session, *, group_id: int, user_ids: list[int]) -> None:
     requested = set(user_ids)
-    existing = set(
-        db.scalars(
-            sa.select(user_group.c.user_id).where(
-                user_group.c.group_id == group_id,
-                user_group.c.user_id.in_(requested),
-            )
-        ).all()
-    )
     valid = set(db.scalars(sa.select(User.id).where(User.id.in_(requested))).all())
     invalid = requested - valid
     if invalid:
         log.info("SCIM add_members skipped unknown ids group=%s ids=%s", group_id, sorted(invalid))
 
-    to_add = [uid for uid in user_ids if uid in valid and uid not in existing]
-    if to_add:
+    if valid:
         db.execute(
-            sa.insert(user_group),
-            [{"group_id": group_id, "user_id": uid} for uid in to_add],
+            pg_insert(user_group)
+            .values([{"group_id": group_id, "user_id": uid} for uid in sorted(valid)])
+            .on_conflict_do_nothing(index_elements=["user_id", "group_id"])
         )
 
 
