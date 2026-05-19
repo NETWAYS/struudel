@@ -19,9 +19,7 @@ x-app-security: &app-security
     - ALL
 
 x-service-base: &service-base
-  build:
-    context: .
-    dockerfile: Dockerfile
+  image: ghcr.io/netways/struudel:latest
   env_file: *env-file
   restart: unless-stopped
   depends_on:

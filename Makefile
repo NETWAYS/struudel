@@ -4,7 +4,7 @@ RUN := $(COMPOSE_DEV) run --rm app
 
 .DEFAULT_GOAL := help
 
-.PHONY: help dev-build dev-run dev-shell dev-psql prod-build prod-run worker-shell redis-cli db-upgrade db-downgrade db-migrate db-history format lint lint-fix type-check css-build test test-cov
+.PHONY: help dev-build dev-run dev-shell dev-psql prod-run worker-shell redis-cli db-upgrade db-downgrade db-migrate db-history format lint lint-fix type-check css-build test test-cov
 
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "; printf "Usage: make <target>\n\nTargets:\n"} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -15,10 +15,7 @@ dev-build: ## Build the dev container image
 dev-run: ## Run the app in foreground (http://localhost:5009)
 	$(COMPOSE_DEV) up
 
-prod-build: ## Build the prod image (no dev overlay)
-	$(COMPOSE_PROD) build
-
-prod-run: ## Run the prod stack in foreground (gunicorn, no mounts)
+prod-run: ## Run the prod stack in foreground (pulls ghcr.io/netways/struudel:latest)
 	$(COMPOSE_PROD) up
 
 dev-shell: ## Open a bash shell inside the app container
