@@ -10,7 +10,12 @@ case "$role" in
     if [ "${APP_ENV:-prod}" = "dev" ]; then
       exec flask --app struudel.app run --host=0.0.0.0 --port=5009 --debug
     else
-      exec gunicorn --workers 4 --bind 0.0.0.0:5009 "struudel.app:create_app()"
+      exec gunicorn \
+        --workers "${GUNICORN_WORKERS:-4}" \
+        --bind 0.0.0.0:5009 \
+        --access-logfile - \
+        --error-logfile - \
+        "struudel.app:create_app()"
     fi
     ;;
   worker)
