@@ -4,7 +4,7 @@ import logging
 
 from struudel.database import SessionLocal
 from struudel.extensions import huey
-from struudel.mail import send_mail
+from struudel.mail import send_mail, try_claim_send_lock
 from struudel.models.poll_response import PollResponse
 from struudel.services.notifications import build_poll_url, render_mail
 from struudel.services.poll import count_responses
@@ -14,6 +14,10 @@ log = logging.getLogger(__name__)
 
 @huey.task(retries=3, retry_delay=60)
 def send_response_notification_task(response_id: int) -> None:
+    if not try_claim_send_lock(f"response:{response_id}"):
+        log.info("response notification dedup hit for response=%s", response_id)
+        return
+
     with SessionLocal() as db:
         response = db.get(PollResponse, response_id)
         if response is None:

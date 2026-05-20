@@ -15,6 +15,11 @@ log = logging.getLogger(__name__)
 # survive the window the pending-invitation dispatcher scans.
 _INVITATION_LOCK_TTL_SECONDS = 7 * 24 * 3600
 
+# Long enough to outlive any sensible Huey retry / re-enqueue window for a
+# transactional mail, short enough that Redis doesn't accumulate stale keys
+# forever.
+_SEND_DEDUP_TTL_SECONDS = 30 * 24 * 3600
+
 
 def try_claim_invitation_lock(poll_id: int) -> bool:
     """Atomically mark a poll as "initial invitations dispatched".
@@ -25,6 +30,20 @@ def try_claim_invitation_lock(poll_id: int) -> bool:
     """
     key = f"mail:invitation_dispatched:{poll_id}".encode()
     return bool(app_state_redis_client.set(key, b"1", ex=_INVITATION_LOCK_TTL_SECONDS, nx=True))
+
+
+def try_claim_send_lock(key: str) -> bool:
+    """Atomically claim a one-shot send key for transactional mail dedup.
+
+    Returns True the first time `key` is seen (caller should send), False on
+    subsequent claims within the TTL — covers Huey retries after partial SMTP
+    failures and duplicate task enqueues. Key naming convention:
+    `<feature>:<purpose>:<ids>` (the `mail:` prefix is added here).
+    """
+    redis_key = f"mail:{key}".encode()
+    return bool(
+        app_state_redis_client.set(redis_key, b"1", ex=_SEND_DEDUP_TTL_SECONDS, nx=True)
+    )
 
 
 def _message_id_domain() -> str:
