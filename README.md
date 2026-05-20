@@ -8,10 +8,12 @@ provider; Struudel handles the polls.
 - **Mixed option types** in one poll — dates, datetimes, free-text
 - **Three voting modes** — Yes/No/Maybe (Doodle-style), single choice, multi choice
 - **Audience by user or group**, with optional mandatory participation
-- **Public, private and mandatory** visibility, plus anonymous voting and
+- **Public or private** visibility, plus anonymous voting and
   hide-results-until-close
 - **Templates** for recurring poll shapes and **custom options** for user-added entries
-- **Email** invitations and reminders for mandatory polls (SMTP)
+- **Guest counts per Yes vote** and an optional **edit window** for responses
+- **Email** via SMTP — invitations, close notifications, reminders and
+  non-responder reports for mandatory polls, opt-in owner notifications
 - **Auto-delete** on close with configurable retention
 
 ## Requirements
@@ -62,10 +64,11 @@ optional settings (mail, timezones, Redis URLs, login button name, …).
 ## Container Image
 
 Pre-built `linux/amd64` images are published to GitHub Container Registry on every
-push to `main`:
+push to `main` (as `:latest`) and on every release tag (as `:X.Y.Z` and `:X.Y`):
 
 ```bash
 docker pull ghcr.io/netways/struudel:latest
+docker pull ghcr.io/netways/struudel:0.9.0
 ```
 
 The image runs `alembic upgrade head` on start and then serves the app via Gunicorn.
