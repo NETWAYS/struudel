@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     oidc_provider_name: str = "SSO"
 
     scim_token: str = ""
+    scim_max_content_length: int = 8 * 1024 * 1024
 
     superuser_group: str = ""
 
