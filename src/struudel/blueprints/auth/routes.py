@@ -1,3 +1,4 @@
+import secrets
 from urllib.parse import urlparse
 
 from flask import current_app, redirect, render_template, request, session, url_for
@@ -97,8 +98,15 @@ def callback() -> Response | tuple[str, int]:
     if has_picture:
         sync_user_avatar(user_id)
 
-    session["user"] = session_user
+    # Defend against session fixation: drop any data the visitor's
+    # pre-login session may have contained (including data an attacker
+    # could have planted via a forced cookie) and assign a fresh SID
+    # so the cookie the attacker holds becomes useless. Preserve only
+    # the post-login redirect, which we read above the call to clear().
     next_url = session.pop("post_login_redirect", None)
+    session.clear()
+    session.sid = secrets.token_urlsafe(32)  # ty: ignore[unresolved-attribute]
+    session["user"] = session_user
     return redirect(next_url or url_for("dashboard.index"))
 
 
