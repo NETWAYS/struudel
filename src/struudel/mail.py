@@ -46,6 +46,19 @@ def try_claim_send_lock(key: str) -> bool:
     )
 
 
+def _redact_recipient(address: str) -> str:
+    """Mask the local-part of an email so INFO logs don't fan out PII.
+
+    `alice@example.com` -> `a***@example.com`. Falls back to a hard mask if
+    the address has no `@` (should never happen for real SMTP recipients).
+    """
+    local, sep, domain = address.partition("@")
+    if not sep:
+        return "<redacted>"
+    head = local[:1] if local else ""
+    return f"{head}***@{domain}"
+
+
 def _message_id_domain() -> str:
     """Stable domain for Message-ID generation.
 
@@ -72,7 +85,10 @@ def send_mail(
     reply_to: str | None = None,
 ) -> None:
     if not settings.mail_enabled:
-        log.info("mail disabled, skipping send to %s (subject=%r)", to, subject)
+        log.info(
+            "mail disabled, skipping send to %s (subject=%r)", _redact_recipient(to), subject
+        )
+        log.debug("mail disabled, full recipient was %s", to)
         return
 
     msg = EmailMessage()
@@ -105,4 +121,5 @@ def send_mail(
             smtp.login(settings.mail_username, settings.mail_password)
         smtp.send_message(msg)
 
-    log.info("sent mail to %s (subject=%r)", to, subject)
+    log.info("sent mail to %s (subject=%r)", _redact_recipient(to), subject)
+    log.debug("sent mail full recipient was %s", to)
