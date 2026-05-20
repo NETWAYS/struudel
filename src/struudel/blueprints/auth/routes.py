@@ -21,6 +21,12 @@ _REDIRECT_MAX_LEN = 2048
 def _is_safe_redirect(url: str) -> bool:
     if len(url) > _REDIRECT_MAX_LEN:
         return False
+    # Chrome and Safari normalise backslash to forward slash in URLs, so
+    # `/\evil.com` would be followed as `//evil.com` even though urlparse
+    # sees an empty scheme/netloc. Require a single leading slash and
+    # forbid both backslash and protocol-relative `//` forms.
+    if not url.startswith("/") or url.startswith("//") or "\\" in url:
+        return False
     parsed = urlparse(url)
     return not parsed.scheme and not parsed.netloc
 
