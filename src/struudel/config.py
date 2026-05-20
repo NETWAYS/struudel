@@ -60,6 +60,7 @@ class Settings(BaseSettings):
     mail_starttls: bool = False
     mail_ssl: bool = False
     mail_timeout_seconds: int = 10
+    mail_message_id_domain: str = ""
 
     @model_validator(mode="after")
     def _require_settings(self) -> "Settings":
