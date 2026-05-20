@@ -11,7 +11,11 @@ log = logging.getLogger(__name__)
 
 @huey.periodic_task(crontab(minute="*/5"))
 def close_due_polls_task() -> None:
-    with SessionLocal() as db:
-        count = close_due_polls(db)
-    if count:
-        log.info("closed %d due poll(s)", count)
+    try:
+        with SessionLocal() as db:
+            count = close_due_polls(db)
+        if count:
+            log.info("closed %d due poll(s)", count)
+    except Exception:
+        log.exception("close_due_polls_task failed")
+        raise

@@ -11,7 +11,11 @@ log = logging.getLogger(__name__)
 
 @huey.periodic_task(crontab(minute="0", hour="3"))
 def purge_expired_polls_task() -> None:
-    with SessionLocal() as db:
-        count = purge_expired_polls(db)
-    if count:
-        log.info("purged %d expired poll(s)", count)
+    try:
+        with SessionLocal() as db:
+            count = purge_expired_polls(db)
+        if count:
+            log.info("purged %d expired poll(s)", count)
+    except Exception:
+        log.exception("purge_expired_polls_task failed")
+        raise
