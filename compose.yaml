@@ -47,6 +47,9 @@ services:
     <<: [*service-base, *app-security]
     container_name: struudel-worker
     command: ["worker"]
+    # Give huey_consumer time to drain in-flight tasks on SIGTERM —
+    # docker's default 10s would SIGKILL mid-mail-send or mid-DB-txn.
+    stop_grace_period: 60s
     # python is already in the image; scan /proc instead of pulling in
     # procps just for `pgrep`. Exits 0 if any process has huey_consumer
     # in its argv, else 1.
