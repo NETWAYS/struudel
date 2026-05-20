@@ -65,6 +65,7 @@
           visibility: {{ form_data.get("visibility", "PRIVATE") | tojson }},
           isMandatory: {{ "true" if form_data.get("is_mandatory") else "false" }},
           status: {{ form_data.get("status", "DRAFT") | tojson }},
+          hasOptions: {{ "true" if (poll_options | length) > 0 else "false" }},
           responseMode: {{ form_data.get("response_mode", "YES_NO_MAYBE") | tojson }},
           statusHelp: {
               DRAFT: "Hidden from the audience. Saved but not yet open for voting.",
@@ -81,7 +82,8 @@
               MULTI_CHOICE: "Voters pick any number of options (with optional cap).",
           }
       }'
-      x-effect="if (visibility === 'PUBLIC') isMandatory = false">
+      x-effect="if (visibility === 'PUBLIC') isMandatory = false; if (!hasOptions && status === 'ACTIVE') status = 'DRAFT';"
+      @options-count-changed="hasOptions = $event.detail.count > 0">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     {% if destructive_warning %}
     <input type="hidden" name="confirm_destructive" value="1">
@@ -123,10 +125,13 @@
                 <legend class="fieldset-legend">{{ legend_icon('pulse') }}Status</legend>
                 <select id="status" name="status" x-model="status" class="select w-full">
                     <option value="DRAFT">Draft</option>
-                    <option value="ACTIVE">Active</option>
+                    <option value="ACTIVE" :disabled="!hasOptions">Active</option>
                     <option value="CLOSED">Closed</option>
                 </select>
                 <p class="text-xs text-base-content/60 mt-1" x-text="statusHelp[status]"></p>
+                <p x-show="!hasOptions" class="text-xs text-warning mt-1">
+                    Add at least one option to activate this poll.
+                </p>
             </fieldset>
             <fieldset class="fieldset">
                 <legend class="fieldset-legend">{{ legend_icon('eye') }}Visibility</legend>

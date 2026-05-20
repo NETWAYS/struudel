@@ -260,6 +260,10 @@ class MandatoryRequiresAudienceError(ValueError):
     """Raised when a mandatory poll is activated without any audience."""
 
 
+class ActiveRequiresOptionsError(ValueError):
+    """Raised when a poll is activated without any options."""
+
+
 def _dispatch_activation_invitations(db: Session, *, poll: Poll) -> None:
     if poll.starts_at is not None and poll.starts_at > datetime.now(UTC):
         # Voting hasn't opened yet — dispatch_pending_invitations_task picks
@@ -299,6 +303,11 @@ def _dispatch_close_notifications(db: Session, *, poll: Poll) -> None:
 
 
 def create_poll(db: Session, *, form: PollForm, created_by_id: int) -> Poll:
+    if form.status == PollStatus.ACTIVE and not form.options:
+        raise ActiveRequiresOptionsError(
+            "active polls require at least one option"
+        )
+
     if form.is_mandatory and form.status == PollStatus.ACTIVE:
         raise MandatoryRequiresAudienceError(
             "mandatory polls require a non-empty audience before activation"
@@ -339,6 +348,11 @@ def create_poll(db: Session, *, form: PollForm, created_by_id: int) -> Poll:
 
 
 def update_poll(db: Session, *, poll: Poll, form: PollForm) -> Poll:
+    if form.status == PollStatus.ACTIVE and not form.options:
+        raise ActiveRequiresOptionsError(
+            "active polls require at least one option"
+        )
+
     if (
         form.is_mandatory
         and form.status == PollStatus.ACTIVE
@@ -878,6 +892,9 @@ def submit_response(
     valid_option_ids = set(
         db.scalars(sa.select(PollOption.id).where(PollOption.poll_id == poll.id)).all()
     )
+    if not valid_option_ids:
+        raise InvalidVoteError("This poll has no options to vote on")
+
     filtered_votes = {oid: status for oid, status in votes.items() if oid in valid_option_ids}
     guest_counts = guest_counts or {}
 

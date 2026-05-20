@@ -48,6 +48,9 @@ function optionsEditor(initial) {
     return {
         options: (initial || []).map(mk),
         init() {
+            this.$watch("options", (val) => {
+                this.$dispatch("options-count-changed", { count: val.length });
+            });
             this.$nextTick(() => {
                 Sortable.create(this.$refs.list, {
                     handle: ".handle",

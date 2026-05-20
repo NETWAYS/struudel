@@ -127,9 +127,21 @@ def new() -> str | Response | tuple[str, int]:
         form = form.model_copy(update={"status": PollStatus.DRAFT})
         downgraded_to_draft = True
 
+    downgraded_no_options = False
+    if form.status == PollStatus.ACTIVE and not form.options:
+        form = form.model_copy(update={"status": PollStatus.DRAFT})
+        downgraded_no_options = True
+
     with SessionLocal() as db:
         poll = poll_service.create_poll(db, form=form, created_by_id=g.user["id"])
         poll_id = poll.id
+
+    if downgraded_no_options:
+        flash(
+            "Saved as draft. Add at least one option, then set status to Active in Edit.",
+            "info",
+        )
+        return redirect(url_for("polls.edit", poll_id=poll_id))
 
     if downgraded_to_draft:
         flash(
@@ -204,6 +216,20 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                         fallback=_poll_options_to_dicts(poll.options),
                     ),
                     errors=[{"loc": ("is_mandatory",), "msg": str(exc)}],
+                ),
+                400,
+            )
+        except poll_service.ActiveRequiresOptionsError as exc:
+            return (
+                render_template(
+                    "polls/edit.html",
+                    poll=poll,
+                    form_data=request.form,
+                    poll_options=_form_options_fallback(
+                        request.form.get("options", ""),
+                        fallback=_poll_options_to_dicts(poll.options),
+                    ),
+                    errors=[{"loc": ("options",), "msg": str(exc)}],
                 ),
                 400,
             )
