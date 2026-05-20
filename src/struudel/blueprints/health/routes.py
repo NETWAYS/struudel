@@ -5,7 +5,7 @@ from werkzeug.wrappers import Response
 
 from struudel.blueprints.health import bp
 from struudel.database import SessionLocal
-from struudel.extensions import session_redis_client
+from struudel.extensions import app_state_redis_client, session_redis_client
 
 
 @bp.route("/live")
@@ -15,11 +15,15 @@ def live() -> Response:
 
 @bp.route("/ready")
 def ready() -> Response | tuple[Response, int]:
-    try:
-        session_redis_client.ping()
-    except RedisError as e:
-        current_app.logger.warning("Readiness check failed (redis): %s", e)
-        return jsonify(status="unavailable", detail="redis unreachable"), 503
+    for name, client in (
+        ("session", session_redis_client),
+        ("app_state", app_state_redis_client),
+    ):
+        try:
+            client.ping()
+        except RedisError as e:
+            current_app.logger.warning("Readiness check failed (%s redis): %s", name, e)
+            return jsonify(status="unavailable", detail=f"{name} redis unreachable"), 503
 
     try:
         with SessionLocal() as db:
