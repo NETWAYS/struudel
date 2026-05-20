@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 from uuid import UUID, uuid4
 
 import sqlalchemy as sa
@@ -504,26 +504,67 @@ def purge_expired_polls(db: Session) -> int:
     return len(polls)
 
 
-def _apply_options(db: Session, *, poll: Poll, options: list[PollOptionData]) -> None:
-    db.execute(
-        sa.delete(PollOption).where(
+def _form_option_key(opt: PollOptionData) -> tuple[PollOptionType, Any, Any, Any]:
+    return (opt.type, opt.date_value, opt.datetime_value, opt.text_value)
+
+
+def _model_option_key(opt: PollOption) -> tuple[PollOptionType, Any, Any, Any]:
+    return (opt.option_type, opt.date_value, opt.datetime_value, opt.text_value)
+
+
+def options_have_destructive_changes(
+    db: Session, *, poll: Poll, options: list[PollOptionData]
+) -> bool:
+    """True if applying `options` would remove any existing non-custom option
+    (and thus cascade-delete its votes)."""
+    existing = db.scalars(
+        sa.select(PollOption).where(
             PollOption.poll_id == poll.id,
             PollOption.is_custom.is_(False),
         )
-    )
-    db.flush()
+    ).all()
+    new_keys = {_form_option_key(opt) for opt in options}
+    return any(_model_option_key(o) not in new_keys for o in existing)
 
-    for idx, opt in enumerate(options):
-        row = PollOption(
-            poll_id=poll.id,
-            option_type=opt.type,
-            sort_order=idx,
-            is_custom=False,
-            date_value=opt.date_value if opt.type == PollOptionType.DATE else None,
-            datetime_value=opt.datetime_value if opt.type == PollOptionType.DATETIME else None,
-            text_value=opt.text_value if opt.type == PollOptionType.TEXT else None,
+
+def _apply_options(db: Session, *, poll: Poll, options: list[PollOptionData]) -> None:
+    existing = list(
+        db.scalars(
+            sa.select(PollOption).where(
+                PollOption.poll_id == poll.id,
+                PollOption.is_custom.is_(False),
+            )
         )
-        db.add(row)
+    )
+    existing_by_key: dict[tuple[PollOptionType, Any, Any, Any], PollOption] = {}
+    for o in existing:
+        existing_by_key.setdefault(_model_option_key(o), o)
+
+    kept_ids: set[int] = set()
+    for idx, opt in enumerate(options):
+        match = existing_by_key.get(_form_option_key(opt))
+        if match is not None and match.id not in kept_ids:
+            if match.sort_order != idx:
+                match.sort_order = idx
+            kept_ids.add(match.id)
+        else:
+            db.add(
+                PollOption(
+                    poll_id=poll.id,
+                    option_type=opt.type,
+                    sort_order=idx,
+                    is_custom=False,
+                    date_value=opt.date_value if opt.type == PollOptionType.DATE else None,
+                    datetime_value=(
+                        opt.datetime_value if opt.type == PollOptionType.DATETIME else None
+                    ),
+                    text_value=opt.text_value if opt.type == PollOptionType.TEXT else None,
+                )
+            )
+
+    to_delete = [o.id for o in existing if o.id not in kept_ids]
+    if to_delete:
+        db.execute(sa.delete(PollOption).where(PollOption.id.in_(to_delete)))
 
     db.flush()
 
@@ -751,16 +792,18 @@ class ResponseRow:
 
 
 def user_can_vote_on_poll(poll: Poll, *, now: datetime) -> VoteGuard:
+    if poll.status == PollStatus.CLOSED:
+        return VoteGuard(can_vote=False, can_edit=False, reason="closed")
+    if poll.status != PollStatus.ACTIVE:
+        return VoteGuard(can_vote=False, can_edit=False, reason="not_active")
+    if poll.starts_at is not None and now < poll.starts_at:
+        return VoteGuard(can_vote=False, can_edit=False, reason="not_started")
+    if poll.ends_at is not None and now > poll.ends_at:
+        return VoteGuard(can_vote=False, can_edit=False, reason="closed")
+
     can_edit = poll.allow_edit_responses and (
         poll.edit_responses_until is None or now <= poll.edit_responses_until
     )
-
-    if poll.status != PollStatus.ACTIVE:
-        return VoteGuard(can_vote=False, can_edit=can_edit, reason="not_active")
-    if poll.starts_at is not None and now < poll.starts_at:
-        return VoteGuard(can_vote=False, can_edit=can_edit, reason="not_started")
-    if poll.ends_at is not None and now > poll.ends_at:
-        return VoteGuard(can_vote=False, can_edit=can_edit, reason="closed")
     return VoteGuard(can_vote=True, can_edit=can_edit, reason=None)
 
 

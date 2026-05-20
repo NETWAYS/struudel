@@ -190,7 +190,10 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
             )
 
         response_count = poll_service.count_responses(db, poll_id=poll.id)
-        if response_count > 0 and request.form.get("confirm_destructive") != "1":
+        destructive = response_count > 0 and poll_service.options_have_destructive_changes(
+            db, poll=poll, options=form.options
+        )
+        if destructive and request.form.get("confirm_destructive") != "1":
             return render_template(
                 "polls/edit.html",
                 poll=poll,
