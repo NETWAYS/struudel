@@ -57,6 +57,14 @@ COPY src ./src
 COPY alembic ./alembic
 COPY .git ./.git
 
+# The selective COPYs above leave most tracked files (LICENSE, README,
+# .github/, …) missing from /app. Without this, hatch-vcs sees those as
+# "deleted" in the working tree and stamps the build with a +dXXXXXXXX
+# dirty suffix. `git checkout -- .` materialises everything from the
+# index, so `uv sync` reads a clean tree and produces the correct
+# version (e.g. 0.9.0 instead of 0.9.1.dev0+gSHA.dDATE).
+RUN cd /app && git checkout -- .
+
 RUN --mount=type=cache,target=/app/.cache/uv \
     uv sync --all-groups
 
