@@ -464,13 +464,18 @@ def add_custom_option(
 
 def close_due_polls(db: Session) -> int:
     now = datetime.now(UTC)
+    # FOR UPDATE SKIP LOCKED prevents two periodic workers from picking
+    # up the same poll, flipping it to CLOSED, and enqueuing duplicate
+    # close-notification mails. The second worker simply sees no rows.
     polls = list(
         db.scalars(
-            sa.select(Poll).where(
+            sa.select(Poll)
+            .where(
                 Poll.status == PollStatus.ACTIVE,
                 Poll.ends_at.is_not(None),
                 Poll.ends_at <= now,
             )
+            .with_for_update(skip_locked=True)
         )
     )
     for poll in polls:
