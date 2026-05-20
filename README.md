@@ -56,10 +56,12 @@ All settings come from environment variables. The required ones:
 | `OIDC_DISCOVERY_URL` | `.well-known/openid-configuration` URL of your IdP |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` | OIDC client credentials registered with the IdP |
 | `SCIM_TOKEN` | Bearer token expected at `/scim/v2` — must match what the IdP's SCIM connector sends |
+| `SECRET_KEY` | Flask session signing key — long random string, no built-in fallback. Generate via `python -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `SESSION_COOKIE_SECURE` | `true` behind TLS in production, `false` only for HTTP dev. Must be set explicitly — no default |
 
-For production also set `SECRET_KEY` (random), `APP_BASE_URL` (public HTTPS URL) and
-`SESSION_COOKIE_SECURE=true`. See [`.env.example`](.env.example) for the full list of
-optional settings (mail, timezones, Redis URLs, login button name, …).
+For production also set `APP_BASE_URL` to the public HTTPS URL.
+See [`.env.example`](.env.example) for the full list of optional settings
+(mail, timezones, Redis URLs, login button name, …).
 
 ## Container Image
 

@@ -16,6 +16,7 @@ services:
       - APP_ENV=dev
       - FLASK_DEBUG=1
       - APP_BASE_URL=http://localhost:5009
+      - SESSION_COOKIE_SECURE=false
       - MAIL_HOST=mailpit
       - MAIL_PORT=1025
       - MAIL_FROM=no-reply@struudel.local

@@ -1,6 +1,7 @@
 from functools import cached_property
+from typing import Any
 
-from pydantic import computed_field, model_validator
+from pydantic import computed_field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -12,7 +13,7 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    secret_key: str = "dev-only-change-for-production"
+    secret_key: str = ""
 
     db_host: str = "postgres"
     db_name: str = "struudel"
@@ -44,7 +45,18 @@ class Settings(BaseSettings):
     app_state_redis_url: str = "redis://redis:6379/2"
     session_lifetime_hours: int = 12
     session_cookie_name: str = "struudel"
-    session_cookie_secure: bool = False
+    session_cookie_secure: bool | None = None
+
+    @field_validator("session_cookie_secure", mode="before")
+    @classmethod
+    def _empty_session_cookie_secure_is_none(cls, value: Any) -> Any:
+        # Empty string from env (`SESSION_COOKIE_SECURE=`) would otherwise
+        # trip pydantic's bool parser with a confusing error before
+        # `_require_settings` can report the missing variable nicely.
+        if isinstance(value, str) and value.strip() == "":
+            return None
+        return value
+
     session_cookie_httponly: bool = True
     session_cookie_samesite: str = "Lax"
 
@@ -75,9 +87,12 @@ class Settings(BaseSettings):
                 ("OIDC_CLIENT_ID", self.oidc_client_id),
                 ("OIDC_CLIENT_SECRET", self.oidc_client_secret),
                 ("SCIM_TOKEN", self.scim_token),
+                ("SECRET_KEY", self.secret_key),
             )
             if not value
         ]
+        if self.session_cookie_secure is None:
+            missing.append("SESSION_COOKIE_SECURE")
         if missing:
             raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
         return self

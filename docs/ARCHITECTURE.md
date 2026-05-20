@@ -297,11 +297,13 @@ OIDC_DISCOVERY_URL        # OpenID Connect discovery document URL
 OIDC_CLIENT_ID            # OIDC client credentials registered with the IdP
 OIDC_CLIENT_SECRET
 SCIM_TOKEN                # Bearer token expected at /scim/v2 — must match the IdP's SCIM connector
+SECRET_KEY                # Flask session signing key — no built-in fallback, no insecure default
+SESSION_COOKIE_SECURE     # true behind TLS in production, false only for HTTP dev — must be set explicitly
 ```
 
-Optional with sensible defaults: `DB_HOST`, `DB_NAME`, `SECRET_KEY`, session settings, `HUEY_WORKERS` (default: 4). Note: `_require_settings` defensively also rejects empty `DB_HOST` / `DB_NAME` — the defaults are non-empty so this only triggers if the env explicitly sets them to `""`.
+Optional with sensible defaults: `DB_HOST`, `DB_NAME`, other session settings, `HUEY_WORKERS` (default: 4). Note: `_require_settings` defensively also rejects empty `DB_HOST` / `DB_NAME` — the defaults are non-empty so this only triggers if the env explicitly sets them to `""`.
 
-DB credentials and other secrets come from `.env`; `compose-dev.yaml` only injects dev-specific overrides (mail to mailpit, `APP_BASE_URL=http://localhost:5009`, `FLASK_DEBUG=1`).
+DB credentials and other secrets come from `.env`; `compose-dev.yaml` injects dev-specific overrides (mail to mailpit, `APP_BASE_URL=http://localhost:5009`, `FLASK_DEBUG=1`, `SESSION_COOKIE_SECURE=false`).
 
 ## Auth & Current User
 
