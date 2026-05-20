@@ -267,7 +267,7 @@ def group_patch_to_actions(ops: list[dict[str, Any]]) -> dict[str, Any]:
             else:
                 raise ScimError(
                     400,
-                    'remove only supported on members (with or without value-eq filter)',
+                    "remove only supported on members (with or without value-eq filter)",
                     "invalidSyntax",
                 )
 

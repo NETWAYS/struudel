@@ -86,9 +86,7 @@ def callback() -> Response | tuple[str, int]:
                 profile=userinfo.get("profile"),
                 picture=userinfo.get("picture"),
             )
-            sync_superuser_from_oidc_groups(
-                db, user_id=user.id, group_names=userinfo.get("groups")
-            )
+            sync_superuser_from_oidc_groups(db, user_id=user.id, group_names=userinfo.get("groups"))
             session_user = user_to_session_dict(user)
             has_picture = bool(user.picture)
             user_id = user.id

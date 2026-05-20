@@ -304,9 +304,7 @@ def _dispatch_close_notifications(db: Session, *, poll: Poll) -> None:
 
 def create_poll(db: Session, *, form: PollForm, created_by_id: int) -> Poll:
     if form.status == PollStatus.ACTIVE and not form.options:
-        raise ActiveRequiresOptionsError(
-            "active polls require at least one option"
-        )
+        raise ActiveRequiresOptionsError("active polls require at least one option")
 
     if form.is_mandatory and form.status == PollStatus.ACTIVE:
         raise MandatoryRequiresAudienceError(
@@ -349,9 +347,7 @@ def create_poll(db: Session, *, form: PollForm, created_by_id: int) -> Poll:
 
 def update_poll(db: Session, *, poll: Poll, form: PollForm) -> Poll:
     if form.status == PollStatus.ACTIVE and not form.options:
-        raise ActiveRequiresOptionsError(
-            "active polls require at least one option"
-        )
+        raise ActiveRequiresOptionsError("active polls require at least one option")
 
     if (
         form.is_mandatory
