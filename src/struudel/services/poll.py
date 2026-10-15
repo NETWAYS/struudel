@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session, selectinload
 from struudel.config import settings
 
 if TYPE_CHECKING:
-    from struudel.blueprints.polls.forms import PollForm, PollOptionData
+    from struudel.blueprints.polls.forms import PollForm, PollOptionData, PollOptionGroupData
 from struudel.models.associations import (
     poll_groups,
     poll_users,
@@ -20,7 +20,7 @@ from struudel.models.associations import (
 )
 from struudel.models.group import Group
 from struudel.models.poll import Poll, PollResponseMode, PollStatus, PollVisibility
-from struudel.models.poll_option import PollOption, PollOptionType
+from struudel.models.poll_option import PollOption, PollOptionGroup, PollOptionType
 from struudel.models.poll_response import PollResponse, PollResponseOption, PollResponseStatus
 from struudel.models.user import User
 
@@ -398,7 +398,10 @@ def create_poll(
     _apply_auto_delete_at(poll)
     db.add(poll)
     db.flush()
-    _apply_options(db, poll=poll, options=form.options)
+    group_id_by_client_key = _apply_groups(db, poll=poll, groups=form.groups)
+    _apply_options(
+        db, poll=poll, options=form.options, group_id_by_client_key=group_id_by_client_key
+    )
     db.commit()
     db.refresh(poll)
 
@@ -478,7 +481,10 @@ def update_poll(
     poll.attributes = attributes
     _apply_auto_delete_at(poll)
 
-    _apply_options(db, poll=poll, options=form.options)
+    group_id_by_client_key = _apply_groups(db, poll=poll, groups=form.groups)
+    _apply_options(
+        db, poll=poll, options=form.options, group_id_by_client_key=group_id_by_client_key
+    )
     db.commit()
     db.refresh(poll)
 
@@ -632,7 +638,56 @@ def options_have_destructive_changes(
     return any(_model_option_key(o) not in new_keys for o in existing)
 
 
-def _apply_options(db: Session, *, poll: Poll, options: list[PollOptionData]) -> None:
+def _apply_groups(db: Session, *, poll: Poll, groups: list[PollOptionGroupData]) -> dict[str, int]:
+    """Upserts poll.option_groups from the submitted list, deletes removed ones
+    (their options are ungrouped via ON DELETE SET NULL, not deleted), and
+    returns client_key -> real group_id.
+
+    A submitted group's `client_key` is the stringified existing group id for a
+    group that already exists, or an opaque client-generated value (e.g. "new-1")
+    for one being created — see PollOptionGroupData.
+    """
+    existing_by_id = {
+        g.id: g
+        for g in db.scalars(sa.select(PollOptionGroup).where(PollOptionGroup.poll_id == poll.id))
+    }
+
+    client_key_to_id: dict[str, int] = {}
+    kept_ids: set[int] = set()
+    for g in groups:
+        # isdigit() alone accepts e.g. "²", which int() rejects.
+        is_id = g.client_key.isascii() and g.client_key.isdigit()
+        existing = existing_by_id.get(int(g.client_key)) if is_id else None
+        if existing is not None:
+            existing.name = g.name
+            existing.max_selections = g.max_selections
+            kept_ids.add(existing.id)
+            client_key_to_id[g.client_key] = existing.id
+        else:
+            new_group = PollOptionGroup(
+                poll_id=poll.id, name=g.name, max_selections=g.max_selections
+            )
+            db.add(new_group)
+            db.flush()
+            kept_ids.add(new_group.id)
+            client_key_to_id[g.client_key] = new_group.id
+
+    to_delete = [gid for gid in existing_by_id if gid not in kept_ids]
+    if to_delete:
+        db.execute(sa.delete(PollOptionGroup).where(PollOptionGroup.id.in_(to_delete)))
+
+    db.flush()
+    return client_key_to_id
+
+
+def _apply_options(
+    db: Session,
+    *,
+    poll: Poll,
+    options: list[PollOptionData],
+    group_id_by_client_key: dict[str, int] | None = None,
+) -> None:
+    group_id_by_client_key = group_id_by_client_key or {}
     existing = list(
         db.scalars(
             sa.select(PollOption).where(
@@ -647,10 +702,14 @@ def _apply_options(db: Session, *, poll: Poll, options: list[PollOptionData]) ->
 
     kept_ids: set[int] = set()
     for idx, opt in enumerate(options):
+        group_id = (
+            group_id_by_client_key.get(opt.group_client_key) if opt.group_client_key else None
+        )
         match = existing_by_key.get(_form_option_key(opt))
         if match is not None and match.id not in kept_ids:
             if match.sort_order != idx:
                 match.sort_order = idx
+            match.group_id = group_id
             kept_ids.add(match.id)
         else:
             db.add(
@@ -659,6 +718,7 @@ def _apply_options(db: Session, *, poll: Poll, options: list[PollOptionData]) ->
                     option_type=opt.type,
                     sort_order=idx,
                     is_custom=False,
+                    group_id=group_id,
                     date_value=opt.date_value if opt.type == PollOptionType.DATE else None,
                     datetime_value=(
                         opt.datetime_value if opt.type == PollOptionType.DATETIME else None
@@ -1053,9 +1113,13 @@ def submit_response(
     comment: str | None,
     guest_counts: dict[int, int] | None = None,
 ) -> PollResponse:
-    valid_option_ids = set(
-        db.scalars(sa.select(PollOption.id).where(PollOption.poll_id == poll.id)).all()
-    )
+    option_rows = db.execute(
+        sa.select(PollOption.id, PollOption.group_id, PollOptionGroup.max_selections)
+        .select_from(PollOption)
+        .outerjoin(PollOptionGroup, PollOption.group_id == PollOptionGroup.id)
+        .where(PollOption.poll_id == poll.id)
+    ).all()
+    valid_option_ids = {row.id for row in option_rows}
     if not valid_option_ids:
         raise InvalidVoteError("This poll has no options to vote on")
 
@@ -1063,6 +1127,8 @@ def submit_response(
     guest_counts = guest_counts or {}
 
     _validate_votes_against_mode(poll=poll, votes=filtered_votes)
+    option_group_info = {row.id: (row.group_id, row.max_selections) for row in option_rows}
+    _validate_group_limits(votes=filtered_votes, option_group_info=option_group_info)
 
     # Idempotent upsert via the (poll_id, user_id) unique constraint, so two
     # parallel submits from the same user collapse into one row instead of
@@ -1124,3 +1190,26 @@ def _validate_votes_against_mode(*, poll: Poll, votes: dict[int, PollResponseSta
         max_yes = poll.attributes.get("max_yes_choices")
         if isinstance(max_yes, int) and max_yes > 0 and yes_count > max_yes:
             raise InvalidVoteError(f"This poll allows at most {max_yes} selection(s)")
+
+
+def _validate_group_limits(
+    *,
+    votes: dict[int, PollResponseStatus],
+    option_group_info: dict[int, tuple[int | None, int | None]],
+) -> None:
+    """Enforces PollOptionGroup.max_selections, independent of response_mode."""
+    group_yes_counts: dict[int, int] = {}
+    group_max: dict[int, int] = {}
+    for option_id, status in votes.items():
+        if status != PollResponseStatus.YES:
+            continue
+        group_id, max_selections = option_group_info.get(option_id, (None, None))
+        if group_id is None or max_selections is None:
+            continue
+        group_yes_counts[group_id] = group_yes_counts.get(group_id, 0) + 1
+        group_max[group_id] = max_selections
+
+    for group_id, count in group_yes_counts.items():
+        max_selections = group_max[group_id]
+        if count > max_selections:
+            raise InvalidVoteError(f"This group allows at most {max_selections} selection(s)")

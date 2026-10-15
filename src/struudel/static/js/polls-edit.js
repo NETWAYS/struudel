@@ -32,10 +32,26 @@ function dateHourPicker(initial) {
     };
 }
 
-function optionsEditor(initial) {
+function optionsEditor(initial, initialGroups) {
     let seq = 0;
+    let groupSeq = 0;
+    const mkGroup = (g) => ({
+        _uid: ++groupSeq,
+        // Not derived from groupSeq: it restarts on every re-render, while
+        // keys of new groups survive a rejected submit via the form payload.
+        clientKey: (g && g.client_key) || `new-${crypto.randomUUID()}`,
+        name: (g && g.name) || "",
+        maxSelections: (g && g.max_selections) || null,
+    });
+    const optionGroups = (initialGroups || []).map(mkGroup);
+    const groupUidByClientKey = {};
+    optionGroups.forEach((g) => {
+        groupUidByClientKey[g.clientKey] = g._uid;
+    });
+
     const mk = (o) => {
         const dt = (o && o.datetime_value) || "";
+        const groupClientKey = (o && o.group_client_key) || null;
         return {
             _uid: ++seq,
             type: (o && o.type) || "DATE",
@@ -43,10 +59,12 @@ function optionsEditor(initial) {
             datetime_date: dt.length >= 10 ? dt.slice(0, 10) : "",
             datetime_hour: dt.length >= 13 ? dt.slice(11, 13) : "10",
             text_value: (o && o.text_value) || "",
+            group_uid: groupClientKey ? groupUidByClientKey[groupClientKey] ?? null : null,
         };
     };
     return {
         options: (initial || []).map(mk),
+        optionGroups,
         init() {
             this.$watch("options", (val) => {
                 this.$dispatch("options-count-changed", { count: val.length });
@@ -65,10 +83,33 @@ function optionsEditor(initial) {
         },
         add() {
             const above = this.options[this.options.length - 1];
-            this.options.push(mk(above ? { type: above.type } : null));
+            const newOption = mk(above ? { type: above.type } : null);
+            newOption.group_uid = above ? above.group_uid : null;
+            this.options.push(newOption);
         },
         remove(i) {
             this.options.splice(i, 1);
+        },
+        addGroup() {
+            this.optionGroups.push(mkGroup());
+        },
+        // Matches the server-side FK (ON DELETE SET NULL): removing a group
+        // ungroups its member options rather than deleting them.
+        removeGroup(gUid) {
+            this.options.forEach((o) => {
+                if (o.group_uid === gUid) o.group_uid = null;
+            });
+            this.optionGroups = this.optionGroups.filter((g) => g._uid !== gUid);
+        },
+        groupFor(opt) {
+            return this.optionGroups.find((g) => g._uid === opt.group_uid) || null;
+        },
+        serializeGroups() {
+            return JSON.stringify(this.optionGroups.map((g) => ({
+                client_key: g.clientKey,
+                name: g.name,
+                max_selections: g.maxSelections || null,
+            })));
         },
         serialize() {
             return JSON.stringify(this.options.map((o) => {
@@ -80,6 +121,8 @@ function optionsEditor(initial) {
                         : null;
                 }
                 if (o.type === "TEXT") base.text_value = o.text_value || null;
+                const group = this.groupFor(o);
+                base.group_client_key = group ? group.clientKey : null;
                 return base;
             }));
         },

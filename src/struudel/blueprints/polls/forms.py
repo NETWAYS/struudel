@@ -46,6 +46,16 @@ OptionalDateTime = Annotated[
 ]
 
 
+class PollOptionGroupData(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra="ignore")
+
+    client_key: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    max_selections: Annotated[int | None, BeforeValidator(_empty_to_none)] = Field(
+        default=None, ge=1
+    )
+
+
 class PollOptionData(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra="ignore")
 
@@ -53,6 +63,7 @@ class PollOptionData(BaseModel):
     date_value: OptionalDate = None
     datetime_value: OptionalDateTime = None
     text_value: OptionalStr = None
+    group_client_key: OptionalStr = None
 
     @model_validator(mode="after")
     def _exactly_one_value(self) -> PollOptionData:
@@ -107,6 +118,10 @@ class PollForm(BaseModel):
         Json[list[PollOptionData]],
         BeforeValidator(_empty_to_empty_list),
     ] = Field(default_factory=list)
+    groups: Annotated[
+        Json[list[PollOptionGroupData]],
+        BeforeValidator(_empty_to_empty_list),
+    ] = Field(default_factory=list)
 
     audience_users: Annotated[
         Json[list[AudienceMember]],
@@ -145,6 +160,16 @@ class PollForm(BaseModel):
             return self
         if self.max_yes_choices is not None and not (1 <= self.max_yes_choices <= 50):
             raise ValueError("max_yes_choices must be between 1 and 50")
+        return self
+
+    @model_validator(mode="after")
+    def _check_option_group_references(self) -> PollForm:
+        group_keys = {g.client_key for g in self.groups}
+        if len(group_keys) != len(self.groups):
+            raise ValueError("option groups must have unique client keys")
+        for opt in self.options:
+            if opt.group_client_key is not None and opt.group_client_key not in group_keys:
+                raise ValueError(f"option references unknown group {opt.group_client_key!r}")
         return self
 
 

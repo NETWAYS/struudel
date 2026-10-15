@@ -129,6 +129,14 @@
             </div>
             {% endif %}
 
+            <template x-for="g in groupsSummary()" :key="g.id">
+                <div class="text-xs"
+                     :class="g.count >= g.max ? 'text-warning font-medium' : 'text-base-content/60'">
+                    <i class="ti ti-list-check"></i>
+                    <span x-text="g.name"></span>: <span x-text="g.count"></span> / <span x-text="g.max"></span> selected<span x-show="g.count >= g.max"> — limit reached</span>
+                </div>
+            </template>
+
             <ul class="divide-y divide-base-200 -mx-6 border-y border-base-200">
                 {% for opt in options %}
                 <li class="flex items-center gap-3 px-6 py-3 hover:bg-base-200/40 transition-colors"
@@ -138,6 +146,9 @@
                         <span class="truncate">{{ option_value(opt) }}</span>
                         {% if opt.is_custom %}
                         <span class="badge badge-ghost badge-sm">custom</span>
+                        {% endif %}
+                        {% if opt.group %}
+                        <span class="badge badge-outline badge-sm">{{ opt.group.name }}</span>
                         {% endif %}
                     </div>
 
@@ -157,6 +168,7 @@
                     <div class="join">
                         <button type="button"
                                 @click="set({{ opt.id }}, 'YES')"
+                                :disabled="!canSelect({{ opt.id }})"
                                 :class="votes[{{ opt.id }}] === 'YES' ? 'btn-success' : ''"
                                 class="btn btn-sm join-item" title="Yes">
                             <i class="ti ti-check"></i>
@@ -177,6 +189,7 @@
                     {% elif mode == 'SINGLE_CHOICE' %}
                     <button type="button"
                             @click="set({{ opt.id }}, 'YES')"
+                            :disabled="!canSelect({{ opt.id }})"
                             :class="votes[{{ opt.id }}] === 'YES' ? 'btn-success' : 'btn-ghost'"
                             class="btn btn-sm">
                         <i class="ti ti-check" x-show="votes[{{ opt.id }}] === 'YES'"></i>

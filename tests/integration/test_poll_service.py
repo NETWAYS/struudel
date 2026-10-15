@@ -3,6 +3,7 @@ from datetime import UTC, datetime, timedelta
 from typing import cast
 
 import pytest
+import sqlalchemy as sa
 from sqlalchemy.orm import Session
 
 from struudel.blueprints.polls.forms import PollForm
@@ -13,7 +14,7 @@ from struudel.models.poll import (
     PollStatus,
     PollVisibility,
 )
-from struudel.models.poll_option import PollOption, PollOptionType
+from struudel.models.poll_option import PollOption, PollOptionGroup, PollOptionType
 from struudel.models.poll_response import PollResponseStatus
 from struudel.services import poll as poll_service
 from tests.conftest import make_user
@@ -598,3 +599,192 @@ def test_draft_to_active_with_inline_audience_invites_each_user_once(
 
     assert poll.status == PollStatus.ACTIVE
     assert sent.count((poll.id, invitee.id)) == 1
+
+
+# ---------------------------------------------------------------------------
+# Option groups — per-group selection caps
+# ---------------------------------------------------------------------------
+
+
+def _group_options(
+    db: Session, *, poll: Poll, options: list[PollOption], max_selections: int | None
+) -> PollOptionGroup:
+    group = PollOptionGroup(poll_id=poll.id, name="G", max_selections=max_selections)
+    db.add(group)
+    db.flush()
+    for o in options:
+        o.group_id = group.id
+    db.flush()
+    return group
+
+
+def _grouped_form(*, group_key: str, max_selections: int | None) -> PollForm:
+    return PollForm.model_validate(
+        {
+            "title": "Spaghettieis",
+            "options": json.dumps(
+                [
+                    {"type": "TEXT", "text_value": "A", "group_client_key": group_key},
+                    {"type": "TEXT", "text_value": "B", "group_client_key": group_key},
+                ]
+            ),
+            "groups": json.dumps(
+                [{"client_key": group_key, "name": "G", "max_selections": max_selections}]
+            ),
+        }
+    )
+
+
+def test_submit_response_group_cap_rejects_too_many_yes(db_session: Session) -> None:
+    owner = make_user(db_session)
+    voter = make_user(db_session)
+    poll = _make_poll(db_session, owner_id=owner.id, visibility=PollVisibility.PUBLIC)
+    opt_a, opt_b = poll.options
+    _group_options(db_session, poll=poll, options=[opt_a, opt_b], max_selections=1)
+
+    with pytest.raises(poll_service.InvalidVoteError):
+        poll_service.submit_response(
+            db_session,
+            poll=poll,
+            user_id=voter.id,
+            votes={opt_a.id: PollResponseStatus.YES, opt_b.id: PollResponseStatus.YES},
+            comment=None,
+        )
+
+
+def test_submit_response_group_cap_ignores_maybe(db_session: Session) -> None:
+    owner = make_user(db_session)
+    voter = make_user(db_session)
+    poll = _make_poll(db_session, owner_id=owner.id, visibility=PollVisibility.PUBLIC)
+    opt_a, opt_b = poll.options
+    _group_options(db_session, poll=poll, options=[opt_a, opt_b], max_selections=1)
+
+    poll_service.submit_response(
+        db_session,
+        poll=poll,
+        user_id=voter.id,
+        votes={opt_a.id: PollResponseStatus.YES, opt_b.id: PollResponseStatus.MAYBE},
+        comment=None,
+    )
+    assert poll_service.count_responses(db_session, poll_id=poll.id) == 1
+
+
+def test_submit_response_ungrouped_options_are_uncapped(db_session: Session) -> None:
+    owner = make_user(db_session)
+    voter = make_user(db_session)
+    poll = _make_poll(
+        db_session, owner_id=owner.id, visibility=PollVisibility.PUBLIC, options=["A", "B", "C"]
+    )
+    opt_a, opt_b, opt_c = poll.options
+    _group_options(db_session, poll=poll, options=[opt_a], max_selections=1)
+
+    poll_service.submit_response(
+        db_session,
+        poll=poll,
+        user_id=voter.id,
+        votes={
+            opt_a.id: PollResponseStatus.YES,
+            opt_b.id: PollResponseStatus.YES,
+            opt_c.id: PollResponseStatus.YES,
+        },
+        comment=None,
+    )
+    assert poll_service.count_responses(db_session, poll_id=poll.id) == 1
+
+
+def test_submit_response_group_without_max_is_unlimited(db_session: Session) -> None:
+    owner = make_user(db_session)
+    voter = make_user(db_session)
+    poll = _make_poll(db_session, owner_id=owner.id, visibility=PollVisibility.PUBLIC)
+    opt_a, opt_b = poll.options
+    _group_options(db_session, poll=poll, options=[opt_a, opt_b], max_selections=None)
+
+    poll_service.submit_response(
+        db_session,
+        poll=poll,
+        user_id=voter.id,
+        votes={opt_a.id: PollResponseStatus.YES, opt_b.id: PollResponseStatus.YES},
+        comment=None,
+    )
+    assert poll_service.count_responses(db_session, poll_id=poll.id) == 1
+
+
+def test_update_poll_keeps_group_id_and_changes_cap(db_session: Session) -> None:
+    owner = make_user(db_session)
+    poll = poll_service.create_poll(
+        db_session, form=_grouped_form(group_key="new-x", max_selections=1), created_by_id=owner.id
+    )
+    (group,) = poll.option_groups
+    group_id = group.id
+
+    poll_service.update_poll(
+        db_session, poll=poll, form=_grouped_form(group_key=str(group_id), max_selections=2)
+    )
+
+    (group,) = poll.option_groups
+    assert group.id == group_id
+    assert group.max_selections == 2
+    assert {o.group_id for o in poll.options} == {group_id}
+
+
+def test_update_poll_removing_group_ungroups_options_and_keeps_votes(db_session: Session) -> None:
+    owner = make_user(db_session)
+    voter = make_user(db_session)
+    poll = poll_service.create_poll(
+        db_session, form=_grouped_form(group_key="new-x", max_selections=1), created_by_id=owner.id
+    )
+    opt_a, opt_b = poll.options
+    poll_service.submit_response(
+        db_session,
+        poll=poll,
+        user_id=voter.id,
+        votes={opt_a.id: PollResponseStatus.YES},
+        comment=None,
+    )
+    ungrouped_form = PollForm.model_validate(
+        {
+            "title": "Spaghettieis",
+            "options": json.dumps(
+                [{"type": "TEXT", "text_value": "A"}, {"type": "TEXT", "text_value": "B"}]
+            ),
+        }
+    )
+
+    poll_service.update_poll(db_session, poll=poll, form=ungrouped_form)
+
+    assert poll.option_groups == []
+    assert [(o.id, o.group_id) for o in poll.options] == [(opt_a.id, None), (opt_b.id, None)]
+    response = poll_service.get_user_response(db_session, poll_id=poll.id, user_id=voter.id)
+    assert response is not None
+    assert {ov.option_id for ov in response.option_votes} == {opt_a.id}
+
+
+def test_deleting_group_row_sets_option_group_id_null(db_session: Session) -> None:
+    """The migration's ON DELETE SET NULL, independent of _apply_options."""
+    owner = make_user(db_session)
+    poll = _make_poll(db_session, owner_id=owner.id)
+    opt_a, _ = poll.options
+    group = _group_options(db_session, poll=poll, options=[opt_a], max_selections=1)
+
+    db_session.execute(sa.delete(PollOptionGroup).where(PollOptionGroup.id == group.id))
+    db_session.refresh(opt_a)
+
+    assert opt_a.group_id is None
+
+
+def test_create_poll_treats_non_ascii_digit_group_key_as_new(db_session: Session) -> None:
+    owner = make_user(db_session)
+    form = PollForm.model_validate(
+        {
+            "title": "Spaghettieis",
+            "options": json.dumps(
+                [{"type": "TEXT", "text_value": "Yes", "group_client_key": "²"}]
+            ),
+            "groups": json.dumps([{"client_key": "²", "name": "G", "max_selections": 1}]),
+        }
+    )
+
+    poll = poll_service.create_poll(db_session, form=form, created_by_id=owner.id)
+
+    assert [g.name for g in poll.option_groups] == ["G"]
+    assert poll.options[0].group_id == poll.option_groups[0].id

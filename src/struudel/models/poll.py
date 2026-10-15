@@ -15,7 +15,7 @@ from struudel.models.base import TimestampMixin
 
 if TYPE_CHECKING:
     from struudel.models.group import Group
-    from struudel.models.poll_option import PollOption
+    from struudel.models.poll_option import PollOption, PollOptionGroup
     from struudel.models.poll_response import PollResponse
     from struudel.models.user import User
 
@@ -122,6 +122,11 @@ class Poll(Base, TimestampMixin):
         back_populates="poll",
         cascade="all, delete-orphan",
         order_by="PollOption.sort_order",
+    )
+    option_groups: Mapped[list[PollOptionGroup]] = relationship(
+        "PollOptionGroup",
+        back_populates="poll",
+        cascade="all, delete-orphan",
     )
     responses: Mapped[list[PollResponse]] = relationship(
         "PollResponse",

@@ -5,7 +5,7 @@ from flask.testing import FlaskClient
 from sqlalchemy.orm import Session
 
 from struudel.models.poll import Poll, PollResponseMode, PollStatus, PollVisibility
-from struudel.models.poll_option import PollOption, PollOptionType
+from struudel.models.poll_option import PollOption, PollOptionGroup, PollOptionType
 from struudel.models.poll_response import PollResponseStatus
 from struudel.services import poll as poll_service
 from tests.conftest import login_as, make_user
@@ -99,6 +99,32 @@ def test_vote_post_persists_response(db_session: Session, client: FlaskClient) -
         opt_a.id: PollResponseStatus.YES,
         opt_b.id: PollResponseStatus.NO,
     }
+
+
+def test_vote_post_400_when_group_cap_exceeded(db_session: Session, client: FlaskClient) -> None:
+    owner = make_user(db_session)
+    voter = make_user(db_session, email="voter@test.local")
+    poll = _make_active_poll(db_session, owner_id=owner.id)
+    opt_a, opt_b = poll.options
+    group = PollOptionGroup(poll_id=poll.id, name="G", max_selections=1)
+    db_session.add(group)
+    db_session.flush()
+    opt_a.group_id = opt_b.group_id = group.id
+    db_session.flush()
+    login_as(client, voter)
+
+    payload = {
+        "votes": json.dumps(
+            [
+                {"option_id": opt_a.id, "status": "YES"},
+                {"option_id": opt_b.id, "status": "YES"},
+            ]
+        ),
+    }
+    resp = client.post(f"/polls/{poll.id}/vote", data=payload)
+    assert resp.status_code == 400
+    assert b"at most 1 selection" in resp.data
+    assert poll_service.get_user_response(db_session, poll_id=poll.id, user_id=voter.id) is None
 
 
 # ---------------------------------------------------------------------------

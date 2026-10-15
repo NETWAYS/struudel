@@ -19,7 +19,7 @@ from struudel.blueprints.polls.forms import PollForm, PollOptionData, VoteForm
 from struudel.database import SessionLocal
 from struudel.models.group import Group
 from struudel.models.poll import Poll, PollStatus
-from struudel.models.poll_option import PollOption, PollOptionType
+from struudel.models.poll_option import PollOption, PollOptionGroup, PollOptionType
 from struudel.models.poll_response import PollResponse
 from struudel.models.user import User
 from struudel.services import poll as poll_service
@@ -108,6 +108,7 @@ def new() -> str | Response | tuple[str, int]:
             poll=None,
             form_data={},
             poll_options=[],
+            poll_option_groups=[],
             initial_users=[],
             initial_groups=[],
             errors=[],
@@ -121,7 +122,8 @@ def new() -> str | Response | tuple[str, int]:
                 "polls/edit.html",
                 poll=None,
                 form_data=request.form,
-                poll_options=_form_options_fallback(request.form.get("options", "")),
+                poll_options=_form_list_fallback(request.form.get("options", "")),
+                poll_option_groups=_form_list_fallback(request.form.get("groups", "")),
                 initial_users=_audience_chips_from_form(
                     request.form.get("audience_users", ""), "user"
                 ),
@@ -148,7 +150,8 @@ def new() -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=None,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(request.form.get("options", "")),
+                    poll_options=_form_list_fallback(request.form.get("options", "")),
+                    poll_option_groups=_form_list_fallback(request.form.get("groups", "")),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
                     ),
@@ -165,7 +168,8 @@ def new() -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=None,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(request.form.get("options", "")),
+                    poll_options=_form_list_fallback(request.form.get("options", "")),
+                    poll_option_groups=_form_list_fallback(request.form.get("groups", "")),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
                     ),
@@ -182,7 +186,8 @@ def new() -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=None,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(request.form.get("options", "")),
+                    poll_options=_form_list_fallback(request.form.get("options", "")),
+                    poll_option_groups=_form_list_fallback(request.form.get("groups", "")),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
                     ),
@@ -199,7 +204,8 @@ def new() -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=None,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(request.form.get("options", "")),
+                    poll_options=_form_list_fallback(request.form.get("options", "")),
+                    poll_option_groups=_form_list_fallback(request.form.get("groups", "")),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
                     ),
@@ -232,6 +238,7 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                 poll=poll,
                 form_data=_poll_to_form_data(poll),
                 poll_options=_poll_options_to_dicts(poll.options),
+                poll_option_groups=_poll_option_groups_to_dicts(poll.option_groups),
                 initial_users=_audience_users_to_dicts(users),
                 initial_groups=_audience_groups_to_dicts(groups),
                 errors=[],
@@ -245,9 +252,13 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=poll,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(
+                    poll_options=_form_list_fallback(
                         request.form.get("options", ""),
                         fallback=_poll_options_to_dicts(poll.options),
+                    ),
+                    poll_option_groups=_form_list_fallback(
+                        request.form.get("groups", ""),
+                        fallback=_poll_option_groups_to_dicts(poll.option_groups),
                     ),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
@@ -269,9 +280,13 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                 "polls/edit.html",
                 poll=poll,
                 form_data=request.form,
-                poll_options=_form_options_fallback(
+                poll_options=_form_list_fallback(
                     request.form.get("options", ""),
                     fallback=_poll_options_to_dicts(poll.options),
+                ),
+                poll_option_groups=_form_list_fallback(
+                    request.form.get("groups", ""),
+                    fallback=_poll_option_groups_to_dicts(poll.option_groups),
                 ),
                 initial_users=_audience_chips_from_form(
                     request.form.get("audience_users", ""), "user"
@@ -297,9 +312,13 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=poll,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(
+                    poll_options=_form_list_fallback(
                         request.form.get("options", ""),
                         fallback=_poll_options_to_dicts(poll.options),
+                    ),
+                    poll_option_groups=_form_list_fallback(
+                        request.form.get("groups", ""),
+                        fallback=_poll_option_groups_to_dicts(poll.option_groups),
                     ),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
@@ -317,9 +336,13 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=poll,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(
+                    poll_options=_form_list_fallback(
                         request.form.get("options", ""),
                         fallback=_poll_options_to_dicts(poll.options),
+                    ),
+                    poll_option_groups=_form_list_fallback(
+                        request.form.get("groups", ""),
+                        fallback=_poll_option_groups_to_dicts(poll.option_groups),
                     ),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
@@ -337,9 +360,13 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=poll,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(
+                    poll_options=_form_list_fallback(
                         request.form.get("options", ""),
                         fallback=_poll_options_to_dicts(poll.options),
+                    ),
+                    poll_option_groups=_form_list_fallback(
+                        request.form.get("groups", ""),
+                        fallback=_poll_option_groups_to_dicts(poll.option_groups),
                     ),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
@@ -357,9 +384,13 @@ def edit(poll_id: int) -> str | Response | tuple[str, int]:
                     "polls/edit.html",
                     poll=poll,
                     form_data=request.form,
-                    poll_options=_form_options_fallback(
+                    poll_options=_form_list_fallback(
                         request.form.get("options", ""),
                         fallback=_poll_options_to_dicts(poll.options),
+                    ),
+                    poll_option_groups=_form_list_fallback(
+                        request.form.get("groups", ""),
+                        fallback=_poll_option_groups_to_dicts(poll.option_groups),
                     ),
                     initial_users=_audience_chips_from_form(
                         request.form.get("audience_users", ""), "user"
@@ -576,8 +607,9 @@ def _poll_to_form_data(poll: Poll) -> dict[str, Any]:
     passthrough_attributes: set[str] = {"max_yes_choices"}
     audience_fields: set[str] = {"audience_users", "audience_groups"}
     for name in PollForm.model_fields:
-        if name == "options" or name in audience_fields:
-            # rendered separately via initial_users / initial_groups / poll_options
+        if name in {"options", "groups"} or name in audience_fields:
+            # rendered separately via initial_users / initial_groups / poll_options /
+            # poll_option_groups
             continue
         if name in bool_attribute_defaults:
             data[name] = bool(poll.attributes.get(name, bool_attribute_defaults[name]))
@@ -616,8 +648,20 @@ def _poll_options_to_dicts(options: Iterable[PollOption]) -> list[dict[str, Any]
             entry["datetime_value"] = to_local(o.datetime_value).strftime("%Y-%m-%dT%H:%M")
         elif o.option_type == PollOptionType.TEXT:
             entry["text_value"] = o.text_value or ""
+        entry["group_client_key"] = str(o.group_id) if o.group_id is not None else None
         result.append(entry)
     return result
+
+
+def _poll_option_groups_to_dicts(groups: Iterable[PollOptionGroup]) -> list[dict[str, Any]]:
+    return [
+        {
+            "client_key": str(g.id),
+            "name": g.name,
+            "max_selections": g.max_selections,
+        }
+        for g in groups
+    ]
 
 
 def _render_vote(
@@ -643,6 +687,9 @@ def _render_vote(
             "id": o.id,
             "label": _option_label(o),
             "is_custom": o.is_custom,
+            "group_id": o.group_id,
+            "group_name": o.group.name if o.group is not None else None,
+            "group_max_selections": o.group.max_selections if o.group is not None else None,
         }
         for o in options
     ]
@@ -719,13 +766,13 @@ def _audience_groups_to_dicts(groups: Iterable[Any]) -> list[dict[str, Any]]:
     ]
 
 
-def _form_options_fallback(
+def _form_list_fallback(
     raw: str, fallback: list[dict[str, Any]] | None = None
 ) -> list[dict[str, Any]]:
     try:
         parsed = json.loads(raw) if raw else []
     except (ValueError, TypeError):
-        log.debug("invalid options payload on form re-render, using fallback")
+        log.debug("invalid list payload on form re-render, using fallback")
         return fallback or []
     if not isinstance(parsed, list):
         return fallback or []

@@ -224,9 +224,11 @@ Core entities and how they relate. Field-level truth lives in `src/struudel/mode
 erDiagram
     User ||--o{ Poll : creates
     Poll ||--o{ PollOption : has
+    Poll ||--o{ PollOptionGroup : "option groups"
     Poll ||--o{ PollResponse : collects
     Poll }o--o{ User : "poll_users (audience)"
     Poll }o--o{ Group : "poll_groups (audience)"
+    PollOptionGroup ||--o{ PollOption : caps
     PollOption ||--o{ PollResponseOption : "voted on"
     PollResponse ||--o{ PollResponseOption : contains
     PollResponse }o--|| User : "by"
@@ -244,6 +246,7 @@ erDiagram
   - `SINGLE_CHOICE` — user picks exactly one option: exactly one `YES`, rest `NO`
   - `MULTI_CHOICE` — user picks N options: any number of `YES`, rest `NO`, no `MAYBE`
 - **Option types** are mixable per poll (`DATE`, `DATETIME`, `TEXT`). A CHECK constraint (`ck_poll_options_value_matches_type`) enforces that exactly the value column matching `option_type` is non-null.
+- **Option groups**: `PollOption.group_id` (nullable) optionally points at a `PollOptionGroup` — an author-defined subset of a poll's options with an optional `max_selections` cap (e.g. "max 1 of A and B"). A group's `max_selections`/`name` are single-sourced on `PollOptionGroup`, not duplicated per option. `group_id` uses `ondelete="SET NULL"`: deleting a group ungroups its member options — they stay on the poll with their votes intact, they just lose the cap.
 - **Custom options**: user-added options require `poll.allow_custom_options=True`; they carry `is_custom=True` and `created_by_id`. Other users can still vote on them.
 - **One response per user per poll**: enforced by `uq_poll_responses_poll_user`. Re-submitting overwrites. Edit window is bounded by `poll.allow_edit_responses` and `poll.edit_responses_until`.
 - **Lifecycle**: `starts_at` gates participation at runtime (no background flip; users simply can't vote yet). `ends_at` triggers an `ACTIVE → CLOSED` transition via the periodic Huey task `close_due_polls_task` (every 5 minutes, `tasks/poll/close_due.py`). `auto_delete_at` is set by the app when a poll transitions to `CLOSED` and the `auto_delete` flag in `poll.attributes` is truthy — the value is `now + settings.poll_retention_days` (default 30). The periodic Huey task `purge_expired_polls_task` (daily at 03:00 UTC, `tasks/poll/purge_expired.py`) deletes polls whose `auto_delete_at` has passed.
@@ -273,6 +276,11 @@ erDiagram
   is rejected in `SINGLE_CHOICE` and `MULTI_CHOICE`; `SINGLE_CHOICE` allows at most
   one YES; `MULTI_CHOICE` honours the `max_yes_choices` cap when set. Routes turn
   `InvalidVoteError` into a 400.
+- **Per-group selection caps**: independent of `response_mode` and unrelated to
+  `max_yes_choices` (no reconciliation between the two), `_validate_group_limits`
+  rejects a submission where the YES count among a `PollOptionGroup`'s member
+  options exceeds its `max_selections`. MAYBE never counts toward a group's cap.
+  Ungrouped options (`group_id IS NULL`) are never capped.
 - **Anonymity**: when `poll.attributes.anonymous_votes=True`, the response summary
   returns `ResponseRow.user=None` and the comment field is hidden in the UI (otherwise
   the comment becomes a fingerprint).

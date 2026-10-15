@@ -94,3 +94,30 @@ def test_ends_at_equal_to_starts_at_rejected() -> None:
 def test_starts_at_only_is_fine() -> None:
     form = PollForm.model_validate(_base_form(starts_at="2026-07-15T14:00"))
     assert form.ends_at is None
+
+
+# ---------------------------------------------------------------------------
+# PollForm._check_option_group_references
+# ---------------------------------------------------------------------------
+
+
+def test_duplicate_group_client_keys_rejected() -> None:
+    with pytest.raises(ValidationError) as exc:
+        PollForm.model_validate(
+            _base_form(
+                groups='[{"client_key": "new-2", "name": "A"},'
+                ' {"client_key": "new-2", "name": "B"}]'
+            )
+        )
+    assert "unique client keys" in str(exc.value)
+
+
+def test_option_referencing_unknown_group_rejected() -> None:
+    with pytest.raises(ValidationError) as exc:
+        PollForm.model_validate(
+            _base_form(
+                options='[{"type": "TEXT", "text_value": "A", "group_client_key": "new-1"}]',
+                groups='[{"client_key": "new-2", "name": "G"}]',
+            )
+        )
+    assert "unknown group 'new-1'" in str(exc.value)

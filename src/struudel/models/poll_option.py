@@ -22,6 +22,31 @@ class PollOptionType(StrEnum):
     TEXT = "TEXT"
 
 
+class PollOptionGroup(Base):
+    __tablename__ = "poll_option_groups"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "max_selections IS NULL OR max_selections >= 1",
+            name="ck_poll_option_groups_max_selections_positive",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True)
+    poll_id: Mapped[int] = mapped_column(
+        sa.BigInteger,
+        sa.ForeignKey("polls.id", ondelete="CASCADE"),
+        index=True,
+    )
+    name: Mapped[str] = mapped_column(sa.String())
+    max_selections: Mapped[int | None] = mapped_column(sa.Integer())
+
+    poll: Mapped[Poll] = relationship("Poll", back_populates="option_groups")
+    options: Mapped[list[PollOption]] = relationship("PollOption", back_populates="group")
+
+    def __repr__(self) -> str:
+        return f"<PollOptionGroup id={self.id} poll_id={self.poll_id} name={self.name!r}>"
+
+
 class PollOption(Base, TimestampMixin):
     __tablename__ = "poll_options"
     __table_args__ = (
@@ -65,9 +90,18 @@ class PollOption(Base, TimestampMixin):
         sa.BigInteger,
         sa.ForeignKey("users.id", ondelete="SET NULL"),
     )
+    group_id: Mapped[int | None] = mapped_column(
+        sa.BigInteger,
+        sa.ForeignKey("poll_option_groups.id", ondelete="SET NULL"),
+        index=True,
+    )
 
     poll: Mapped[Poll] = relationship("Poll", back_populates="options")
     created_by: Mapped[User | None] = relationship("User", foreign_keys=[created_by_id])
+    group: Mapped[PollOptionGroup | None] = relationship(
+        "PollOptionGroup",
+        back_populates="options",
+    )
     response_votes: Mapped[list[PollResponseOption]] = relationship(
         "PollResponseOption",
         back_populates="option",
