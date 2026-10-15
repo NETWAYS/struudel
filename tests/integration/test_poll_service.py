@@ -777,9 +777,7 @@ def test_create_poll_treats_non_ascii_digit_group_key_as_new(db_session: Session
     form = PollForm.model_validate(
         {
             "title": "Spaghettieis",
-            "options": json.dumps(
-                [{"type": "TEXT", "text_value": "Yes", "group_client_key": "²"}]
-            ),
+            "options": json.dumps([{"type": "TEXT", "text_value": "Yes", "group_client_key": "²"}]),
             "groups": json.dumps([{"client_key": "²", "name": "G", "max_selections": 1}]),
         }
     )
